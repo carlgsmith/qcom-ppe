@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * IPQ8074 PPE (packet process engine) and its Ethernet DMA.
+ */
+
+#include <dt-bindings/clock/qcom,gcc-ipq8074.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+&soc {
+	/* The PPE node covers the EDMA registers, so its window ends at the end
+	 * of the EDMA block. The per-port clocks and resets are in the port
+	 * nodes that the board file adds under ethernet-ports.
+	 */
+	ppe: ethernet-switch@3a000000 {
+		compatible = "qcom,ipq8074-ppe";
+		reg = <0x3a000000 0xbb0000>;
+		clocks = <&gcc GCC_NSS_PPE_CLK>,
+			 <&gcc GCC_NSS_PPE_CFG_CLK>,
+			 <&gcc GCC_NSS_PPE_IPE_CLK>,
+			 <&gcc GCC_NSS_PPE_BTQ_CLK>,
+			 <&gcc GCC_NSSNOC_PPE_CLK>,
+			 <&gcc GCC_NSSNOC_PPE_CFG_CLK>,
+			 <&gcc GCC_CMN_12GPLL_AHB_CLK>,
+			 <&gcc GCC_CMN_12GPLL_SYS_CLK>,
+			 <&gcc GCC_MDIO_AHB_CLK>,
+			 <&gcc GCC_NSS_NOC_CLK>,
+			 <&gcc GCC_NSSNOC_SNOC_CLK>,
+			 <&gcc GCC_MEM_NOC_NSS_AXI_CLK>,
+			 <&gcc GCC_NSS_CRYPTO_CLK>,
+			 <&gcc GCC_NSS_IMEM_CLK>,
+			 <&gcc GCC_NSS_PTP_REF_CLK>;
+		clock-names = "ppe", "apb", "ipe", "btq",
+			      "nssnoc_ppe", "nssnoc_ppe_cfg",
+			      "cmn_ahb", "cmn_sys", "mdio_ahb",
+			      "nss_noc", "nssnoc_snoc", "mem_noc_nss_axi",
+			      "crypto", "imem", "ptp_ref";
+		resets = <&gcc GCC_PPE_FULL_RESET>;
+		status = "disabled";
+
+		edma: ethernet-dma {
+			clocks = <&gcc GCC_NSS_EDMA_CLK>,
+				 <&gcc GCC_NSS_EDMA_CFG_CLK>;
+			clock-names = "sys", "apb";
+			resets = <&gcc GCC_EDMA_HW_RESET>;
+			interrupts = <GIC_SPI 345 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 353 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 361 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 344 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "txcmpl_7", "rxfill_7",
+					  "rxdesc_15", "misc";
+		};
+
+		ethernet-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+};
