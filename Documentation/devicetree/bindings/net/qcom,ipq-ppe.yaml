@@ -43,6 +43,13 @@ description: |
   descriptor rings and 8 RX fill rings. A port with an "ethernet" property
   is the CPU port of a DSA switch.
 
+  The IPQ8074 PPE has six front panel ports and an internal loopback port.
+  Ports are connected to the host CPU through Ethernet DMA that is reached as
+  port 0, the CPU port. It is not connected to bus interconnects. Its Ethernet
+  DMA has 24 TX descriptor rings, 8 TX completion rings, 16 RX descriptor
+  rings and 8 RX fill rings. A port with an "ethernet" property is the CPU
+  port of a DSA switch.
+
   The follow diagram shows the PPE hardware block along with its connectivity
   to the external hardware blocks such clock hardware blocks (CMNPLL, GCC,
   NSS clock controller) and Ethernet PCS/PHY blocks. For depicting the PHY
@@ -91,6 +98,7 @@ properties:
     enum:
       - qcom,ipq5424-ppe
       - qcom,ipq6018-ppe
+      - qcom,ipq8074-ppe
       - qcom,ipq9574-ppe
 
   reg:
@@ -98,11 +106,11 @@ properties:
 
   clocks:
     minItems: 4
-    maxItems: 14
+    maxItems: 15
 
   clock-names:
     minItems: 4
-    maxItems: 14
+    maxItems: 15
 
   resets:
     maxItems: 1
@@ -180,11 +188,11 @@ properties:
           - const: edma_cfg
 
       interrupts:
-        minItems: 10
+        minItems: 4
         maxItems: 65
 
       interrupt-names:
-        minItems: 10
+        minItems: 4
         maxItems: 65
         items:
           oneOf:
@@ -344,8 +352,10 @@ allOf:
         ethernet-dma:
           properties:
             interrupts:
+              minItems: 17
               maxItems: 17
             interrupt-names:
+              minItems: 17
               maxItems: 17
         ethernet-ports:
           patternProperties:
@@ -401,9 +411,64 @@ allOf:
         ethernet-dma:
           properties:
             interrupts:
+              minItems: 10
               maxItems: 10
             interrupt-names:
+              minItems: 10
               maxItems: 10
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: qcom,ipq8074-ppe
+    then:
+      properties:
+        clocks:
+          items:
+            - description: PPE core clock
+            - description: PPE APB (Advanced Peripheral Bus) clock
+            - description: PPE IPE (Ingress Process Engine) clock
+            - description: PPE BM, QM and scheduler clock
+            - description: NSS NOC clock of the PPE
+            - description: NSS NOC clock of the PPE register access
+            - description: CMN PLL AHB clock
+            - description: CMN PLL system clock
+            - description: MDIO AHB clock
+            - description: NSS NOC clock
+            - description: NSS NOC to SNOC clock
+            - description: Memory NOC to NSS AXI clock
+            - description: NSS crypto clock
+            - description: NSS IMEM clock
+            - description: NSS PTP reference clock
+        clock-names:
+          items:
+            - const: ppe
+            - const: apb
+            - const: ipe
+            - const: btq
+            - const: nssnoc_ppe
+            - const: nssnoc_ppe_cfg
+            - const: cmn_ahb
+            - const: cmn_sys
+            - const: mdio_ahb
+            - const: nss_noc
+            - const: nssnoc_snoc
+            - const: mem_noc_nss_axi
+            - const: crypto
+            - const: imem
+            - const: ptp_ref
+        interrupts: false
+        interconnects: false
+        interconnect-names: false
+        ethernet-dma:
+          properties:
+            interrupts:
+              minItems: 4
+              maxItems: 4
+            interrupt-names:
+              minItems: 4
+              maxItems: 4
         ethernet-ports:
           patternProperties:
             "^ethernet-port@[0-6]$":
