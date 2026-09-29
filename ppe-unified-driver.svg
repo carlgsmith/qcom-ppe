@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 730" width="1000" height="730" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <title>Unified PPE/EDMA driver block diagram</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+    <style>
+      .t { fill: #1a1a1a; }
+      .h { font-weight: bold; font-size: 14px; }
+      .s { font-size: 12px; fill: #333; }
+      .dt { fill: #f2f2f2; stroke: #777; stroke-width: 1.5; }
+      .dat { fill: #d9e8f7; stroke: #2b5d8c; stroke-width: 1.5; }
+      .core { fill: #dff0d8; stroke: #3c763d; stroke-width: 1.5; }
+      .port { fill: #fde9cf; stroke: #b5651d; stroke-width: 1.5; }
+      .edma { fill: #e6dff3; stroke: #5b3f8c; stroke-width: 1.5; }
+      .sub { fill: #ffffff; stroke: #666; stroke-width: 1; }
+      .hw { fill: #eeeeee; stroke: #666; stroke-width: 1.5; }
+      .ln { stroke: #444; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1000" height="730" fill="#ffffff"/>
+
+  <text x="500" y="30" text-anchor="middle" class="t h" font-size="18">Unified PPE / EDMA driver</text>
+
+  <!-- Device tree -->
+  <rect x="40" y="50" width="920" height="56" class="dt"/>
+  <text x="500" y="72" text-anchor="middle" class="t h">Device tree</text>
+  <text x="500" y="92" text-anchor="middle" class="s">PPE node with ethernet-dma child and ethernet-ports. The board adds the ports, PHYs and PCS handles.</text>
+  <path d="M500,106 L500,134" class="ln"/>
+
+  <!-- Match data -->
+  <rect x="40" y="136" width="920" height="72" class="dat"/>
+  <text x="500" y="158" text-anchor="middle" class="t h">Match data: struct ppe_of_data (selected by the compatible string)</text>
+  <text x="500" y="178" text-anchor="middle" class="s">PPE type  |  feature bits  |  register map  |  table sizes  |  BM, QM and scheduler tables</text>
+  <text x="500" y="196" text-anchor="middle" class="s">clocks and interconnects  |  MAC table  |  EDMA generation and data</text>
+  <path d="M170,208 L170,240" class="ln"/>
+  <path d="M530,208 L530,240" class="ln"/>
+
+  <!-- PPE core -->
+  <rect x="40" y="242" width="260" height="358" class="core"/>
+  <text x="170" y="266" text-anchor="middle" class="t h">PPE core</text>
+  <text x="170" y="292" text-anchor="middle" class="t h">ppe.c</text>
+  <text x="170" y="309" text-anchor="middle" class="s">probe, clocks, resets, regmap,</text>
+  <text x="170" y="325" text-anchor="middle" class="s">port model selection</text>
+  <text x="170" y="355" text-anchor="middle" class="t h">ppe_config.c</text>
+  <text x="170" y="372" text-anchor="middle" class="s">BM, QM, scheduler, queues, RSS,</text>
+  <text x="170" y="388" text-anchor="middle" class="s">bridge, VSI and FDB, fabric setup</text>
+  <text x="170" y="418" text-anchor="middle" class="t h">ppe_regs.h</text>
+  <text x="170" y="435" text-anchor="middle" class="s">registers and table sizes</text>
+  <text x="170" y="465" text-anchor="middle" class="t h">ppe_debugfs.c</text>
+  <text x="170" y="482" text-anchor="middle" class="s">PPE and EDMA counters</text>
+  <text x="170" y="540" text-anchor="middle" class="s">Register access of the MACs, the port</text>
+  <text x="170" y="556" text-anchor="middle" class="s">control and the switch tables goes</text>
+  <text x="170" y="572" text-anchor="middle" class="s">through this layer.</text>
+
+  <!-- Port models -->
+  <rect x="330" y="242" width="400" height="158" class="port"/>
+  <text x="530" y="264" text-anchor="middle" class="t h">Port models: all netdev code</text>
+  <text x="530" y="281" text-anchor="middle" class="s">topology, phylink glue, net_device_ops, ethtool</text>
+  <rect x="345" y="292" width="115" height="50" class="sub"/>
+  <text x="402" y="313" text-anchor="middle" class="t h">None</text>
+  <text x="402" y="330" text-anchor="middle" class="s">hardware only</text>
+  <rect x="472" y="292" width="115" height="50" class="sub"/>
+  <text x="530" y="313" text-anchor="middle" class="t h">Direct</text>
+  <text x="530" y="330" text-anchor="middle" class="s">ppe_port.c</text>
+  <rect x="600" y="292" width="115" height="50" class="sub"/>
+  <text x="657" y="313" text-anchor="middle" class="t h">DSA</text>
+  <text x="657" y="330" text-anchor="middle" class="s">ppe_dsa.c</text>
+  <rect x="345" y="352" width="370" height="40" class="sub"/>
+  <text x="530" y="369" text-anchor="middle" class="t h">Port MAC layer: ppe_mac.c</text>
+  <text x="530" y="385" text-anchor="middle" class="s">GMAC and XGMAC, port mux, link up and down, MIB counters</text>
+
+  <!-- PCS -->
+  <rect x="760" y="242" width="200" height="158" class="port"/>
+  <text x="860" y="264" text-anchor="middle" class="t h">UNIPHY PCS</text>
+  <text x="860" y="300" text-anchor="middle" class="s">SGMII, QSGMII, PSGMII,</text>
+  <text x="860" y="316" text-anchor="middle" class="s">USXGMII, 2500base-x</text>
+  <text x="860" y="346" text-anchor="middle" class="s">used through phylink</text>
+  <path d="M730,321 L758,321" class="ln"/>
+
+  <!-- Port models and EDMA to the PPE core -->
+  <path d="M330,321 L302,321" class="ln"/>
+  <path d="M330,530 L302,530" class="ln"/>
+
+  <!-- Interface between port models and EDMA -->
+  <path d="M350,400 L350,448" class="ln"/>
+  <path d="M710,448 L710,400" class="ln"/>
+  <text x="530" y="422" text-anchor="middle" class="s">&#9660; EDMA API: xmit, open, close, set_max_frame, stats</text>
+  <text x="530" y="440" text-anchor="middle" class="s">&#9650; RX frames to registered netdevs, TX queue wake</text>
+
+  <!-- EDMA -->
+  <rect x="330" y="450" width="400" height="150" class="edma"/>
+  <text x="530" y="472" text-anchor="middle" class="t h">EDMA engine: edma.h API, edma.c</text>
+  <rect x="345" y="486" width="175" height="62" class="sub"/>
+  <text x="432" y="507" text-anchor="middle" class="t h">EDMA v1</text>
+  <text x="432" y="524" text-anchor="middle" class="s">2-word descriptors, preheader</text>
+  <text x="432" y="539" text-anchor="middle" class="s">page pools, cfg, rx, tx</text>
+  <rect x="540" y="486" width="175" height="62" class="sub"/>
+  <text x="627" y="507" text-anchor="middle" class="t h">EDMA v2</text>
+  <text x="627" y="524" text-anchor="middle" class="s">8-word descriptors</text>
+  <text x="627" y="539" text-anchor="middle" class="s">skb buffers, cfg, rx, tx</text>
+  <rect x="345" y="558" width="370" height="30" class="sub"/>
+  <text x="530" y="577" text-anchor="middle" class="s">edma.c: dispatch, frame delivery, DSA tag, helpers</text>
+
+  <!-- Hardware -->
+  <path d="M170,600 L170,634" class="ln"/>
+  <path d="M530,600 L530,634" class="ln"/>
+  <path d="M860,400 L860,634" class="ln"/>
+  <rect x="40" y="636" width="920" height="64" class="hw"/>
+  <text x="500" y="662" text-anchor="middle" class="t h">Hardware</text>
+  <text x="500" y="682" text-anchor="middle" class="s">PPE (BM, QM, scheduler, L2 and VSI)  |  EDMA rings  |  GMAC and XGMAC  |  UNIPHY  |  PHY and switch ports</text>
+</svg>
