@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * IPQ6018 PPE (packet process engine) and its Ethernet DMA.
+ */
+
+#include <dt-bindings/clock/qcom,gcc-ipq6018.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/reset/qcom,gcc-ipq6018.h>
+
+&soc {
+	/* The PPE node covers the EDMA registers, so its window ends at the end
+	 * of the EDMA block. The per-port clocks and resets are in the port
+	 * nodes that the board file adds under ethernet-ports.
+	 */
+	ppe: ethernet-switch@3a000000 {
+		compatible = "qcom,ipq6018-ppe";
+		reg = <0x0 0x3a000000 0x0 0xbb0000>;
+		clocks = <&gcc GCC_NSS_PPE_CLK>,
+			 <&gcc GCC_NSS_PPE_CFG_CLK>,
+			 <&gcc GCC_NSS_PPE_IPE_CLK>,
+			 <&gcc GCC_NSSNOC_PPE_CLK>,
+			 <&gcc GCC_NSSNOC_PPE_CFG_CLK>,
+			 <&gcc GCC_CMN_12GPLL_AHB_CLK>,
+			 <&gcc GCC_CMN_12GPLL_SYS_CLK>,
+			 <&gcc GCC_MDIO_AHB_CLK>,
+			 <&gcc GCC_NSS_NOC_CLK>,
+			 <&gcc GCC_NSSNOC_SNOC_CLK>,
+			 <&gcc GCC_SNOC_NSSNOC_CLK>,
+			 <&gcc GCC_NSS_CRYPTO_CLK>,
+			 <&gcc GCC_NSSNOC_CRYPTO_CLK>,
+			 <&gcc GCC_NSS_PTP_REF_CLK>;
+		clock-names = "ppe", "apb", "ipe",
+			      "nssnoc_ppe", "nssnoc_ppe_cfg",
+			      "cmn_ahb", "cmn_sys", "mdio_ahb",
+			      "nss_noc", "nssnoc_snoc", "snoc_nssnoc",
+			      "crypto", "nssnoc_crypto", "ptp_ref";
+		assigned-clocks = <&gcc GCC_NSS_PPE_CLK>,
+				  <&gcc GCC_NSS_CRYPTO_CLK>;
+		assigned-clock-rates = <300000000>, <600000000>;
+		resets = <&gcc GCC_PPE_FULL_RESET>;
+		status = "disabled";
+
+		/* The order of the interrupts sets the CPU affinity that the
+		 * packet scheduler assigns, first ring first.
+		 */
+		edma: ethernet-dma {
+			clocks = <&gcc GCC_NSS_EDMA_CLK>,
+				 <&gcc GCC_NSS_EDMA_CFG_CLK>;
+			clock-names = "sys", "apb";
+			resets = <&gcc GCC_EDMA_HW_RESET>;
+			interrupts = <GIC_SPI 354 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 379 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 343 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 344 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 345 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 346 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 378 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 377 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 376 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 375 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "rxfill_7", "misc",
+					  "rxdesc_12", "rxdesc_13",
+					  "rxdesc_14", "rxdesc_15",
+					  "txcmpl_23", "txcmpl_22",
+					  "txcmpl_21", "txcmpl_20";
+		};
+
+		ethernet-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+};
