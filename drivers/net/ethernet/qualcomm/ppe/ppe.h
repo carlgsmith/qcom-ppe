@@ -11,12 +11,33 @@
 
 struct device;
 struct regmap;
+struct regmap_config;
 struct dentry;
+struct ppe_config_data;
+
+/**
+ * struct ppe_of_data - Per-SoC PPE data, selected by the compatible string.
+ * @clk_rate: PPE clock rate.
+ * @num_ports: Number of PPE ports.
+ * @regmap_config: Register map configuration.
+ * @icc_data: Interconnect path descriptions.
+ * @num_icc_paths: Number of interconnect paths.
+ * @config: BM, QM and scheduler tables, owned by ppe_config.c.
+ */
+struct ppe_of_data {
+	unsigned long clk_rate;
+	unsigned int num_ports;
+	const struct regmap_config *regmap_config;
+	const struct icc_bulk_data *icc_data;
+	unsigned int num_icc_paths;
+	const struct ppe_config_data *config;
+};
 
 /**
  * struct ppe_device - PPE device private data.
  * @dev: PPE device structure.
  * @regmap: PPE register map.
+ * @data: Per-SoC data.
  * @clk_rate: PPE clock rate.
  * @num_ports: Number of PPE ports.
  * @debugfs_root: Debugfs root entry.
@@ -30,6 +51,7 @@ struct dentry;
 struct ppe_device {
 	struct device *dev;
 	struct regmap *regmap;
+	const struct ppe_of_data *data;
 	unsigned long clk_rate;
 	unsigned int num_ports;
 	struct dentry *debugfs_root;

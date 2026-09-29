@@ -287,6 +287,8 @@ struct ppe_rss_hash_cfg {
 	u8 hash_fin_outer[PPE_RSS_HASH_TUPLES];
 };
 
+extern const struct ppe_config_data ppe_ipq9574_config;
+
 int ppe_hw_config(struct ppe_device *ppe_dev);
 int ppe_queue_scheduler_set(struct ppe_device *ppe_dev,
 			    int node_id, bool flow_level, int port,

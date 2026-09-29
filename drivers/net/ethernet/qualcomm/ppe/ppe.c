@@ -24,7 +24,7 @@
 /* ICC clocks for enabling PPE device. The avg_bw and peak_bw with value 0
  * will be updated by the clock rate of PPE.
  */
-static const struct icc_bulk_data ppe_icc_data[] = {
+static const struct icc_bulk_data ipq9574_ppe_icc_data[] = {
 	{
 		.name = "ppe",
 		.avg_bw = 0,
@@ -108,8 +108,18 @@ static const struct regmap_config regmap_config_ipq9574 = {
 	.max_register = 0xbef800,
 };
 
+static const struct ppe_of_data ppe_ipq9574_data = {
+	.clk_rate = PPE_CLK_RATE,
+	.num_ports = PPE_PORT_MAX,
+	.regmap_config = &regmap_config_ipq9574,
+	.icc_data = ipq9574_ppe_icc_data,
+	.num_icc_paths = ARRAY_SIZE(ipq9574_ppe_icc_data),
+	.config = &ppe_ipq9574_config,
+};
+
 static int ppe_clock_init_and_reset(struct ppe_device *ppe_dev)
 {
+	const struct icc_bulk_data *icc_data = ppe_dev->data->icc_data;
 	unsigned long ppe_rate = ppe_dev->clk_rate;
 	struct device *dev = ppe_dev->dev;
 	struct reset_control *rstc;
@@ -118,15 +128,15 @@ static int ppe_clock_init_and_reset(struct ppe_device *ppe_dev)
 	int ret, i;
 
 	for (i = 0; i < ppe_dev->num_icc_paths; i++) {
-		ppe_dev->icc_paths[i].name = ppe_icc_data[i].name;
-		ppe_dev->icc_paths[i].avg_bw = ppe_icc_data[i].avg_bw ? :
+		ppe_dev->icc_paths[i].name = icc_data[i].name;
+		ppe_dev->icc_paths[i].avg_bw = icc_data[i].avg_bw ? :
 					       Bps_to_icc(ppe_rate);
 
 		/* PPE does not have an explicit peak bandwidth requirement,
 		 * so set the peak bandwidth to be equal to the average
 		 * bandwidth.
 		 */
-		ppe_dev->icc_paths[i].peak_bw = ppe_icc_data[i].peak_bw ? :
+		ppe_dev->icc_paths[i].peak_bw = icc_data[i].peak_bw ? :
 						Bps_to_icc(ppe_rate);
 	}
 
@@ -173,11 +183,16 @@ static int ppe_clock_init_and_reset(struct ppe_device *ppe_dev)
 static int qcom_ppe_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	const struct ppe_of_data *data;
 	struct ppe_device *ppe_dev;
 	void __iomem *base;
 	int ret, num_icc;
 
-	num_icc = ARRAY_SIZE(ppe_icc_data);
+	data = device_get_match_data(dev);
+	if (!data)
+		return -ENODEV;
+
+	num_icc = data->num_icc_paths;
 	ppe_dev = devm_kzalloc(dev, struct_size(ppe_dev, icc_paths, num_icc),
 			       GFP_KERNEL);
 	if (!ppe_dev)
@@ -187,13 +202,14 @@ static int qcom_ppe_probe(struct platform_device *pdev)
 	if (IS_ERR(base))
 		return dev_err_probe(dev, PTR_ERR(base), "PPE ioremap failed\n");
 
-	ppe_dev->regmap = devm_regmap_init_mmio(dev, base, &regmap_config_ipq9574);
+	ppe_dev->regmap = devm_regmap_init_mmio(dev, base, data->regmap_config);
 	if (IS_ERR(ppe_dev->regmap))
 		return dev_err_probe(dev, PTR_ERR(ppe_dev->regmap),
 				     "PPE initialize regmap failed\n");
 	ppe_dev->dev = dev;
-	ppe_dev->clk_rate = PPE_CLK_RATE;
-	ppe_dev->num_ports = PPE_PORT_MAX;
+	ppe_dev->data = data;
+	ppe_dev->clk_rate = data->clk_rate;
+	ppe_dev->num_ports = data->num_ports;
 	ppe_dev->num_icc_paths = num_icc;
 
 	ret = ppe_clock_init_and_reset(ppe_dev);
@@ -219,7 +235,7 @@ static void qcom_ppe_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id qcom_ppe_of_match[] = {
-	{ .compatible = "qcom,ipq9574-ppe" },
+	{ .compatible = "qcom,ipq9574-ppe", .data = &ppe_ipq9574_data },
 	{}
 };
 MODULE_DEVICE_TABLE(of, qcom_ppe_of_match);
