@@ -147,6 +147,7 @@ struct edma {
 
 struct edmav2_hw_info;
 extern const struct edmav2_hw_info edmav2_ipq9574_data;
+extern const struct edmav2_hw_info edmav2_ipq5424_data;
 
 /* Lifecycle */
 int edma_init(struct ppe_device *ppe_dev, const struct edma_config *cfg,

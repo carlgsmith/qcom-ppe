@@ -23,6 +23,10 @@
 #define PPE_PORT_MAX		8
 #define PPE_CLK_RATE		353000000
 
+/* The IPQ5424 has three physical ports and the port of the EDMA. */
+#define IPQ5424_PPE_PORT_MAX	4
+#define IPQ5424_PPE_CLK_RATE	375000000
+
 /* ICC clocks for enabling PPE device. The avg_bw and peak_bw with value 0
  * will be updated by the clock rate of PPE.
  */
@@ -101,6 +105,63 @@ static const struct regmap_access_table ppe_reg_table = {
 	.n_yes_ranges = ARRAY_SIZE(ppe_readable_ranges),
 };
 
+/* The IPQ5424 has three Ethernet ports, and the register space of the GMACs
+ * and XGMACs after the third is not there.
+ */
+static const struct regmap_range ipq5424_ppe_reserved_ranges[] = {
+	regmap_reg_range(0x1600, 0x17ff),	/* GMAC3 */
+	regmap_reg_range(0x1800, 0x19ff),	/* GMAC4 */
+	regmap_reg_range(0x1a00, 0x1bff),	/* GMAC5 */
+	regmap_reg_range(0x50c000, 0x50ffff),	/* XGMAC3 */
+	regmap_reg_range(0x510000, 0x513fff),	/* XGMAC4 */
+	regmap_reg_range(0x514000, 0x517fff),	/* XGMAC5 */
+};
+
+static const struct regmap_access_table ipq5424_ppe_reg_table = {
+	.yes_ranges = ppe_readable_ranges,
+	.n_yes_ranges = ARRAY_SIZE(ppe_readable_ranges),
+	.no_ranges = ipq5424_ppe_reserved_ranges,
+	.n_no_ranges = ARRAY_SIZE(ipq5424_ppe_reserved_ranges),
+};
+
+static const struct regmap_config regmap_config_ipq5424 = {
+	.reg_bits = 32,
+	.reg_stride = 4,
+	.val_bits = 32,
+	.rd_table = &ipq5424_ppe_reg_table,
+	.wr_table = &ipq5424_ppe_reg_table,
+	.max_register = 0xbef800,
+};
+
+/* The interconnect paths of the IPQ5424. */
+static const struct icc_bulk_data ipq5424_ppe_icc_data[] = {
+	{
+		.name = "ppe",
+		.avg_bw = 0,
+		.peak_bw = 0,
+	},
+	{
+		.name = "ppe_cfg",
+		.avg_bw = 0,
+		.peak_bw = 0,
+	},
+	{
+		.name = "nssnoc_ce_axi",
+		.avg_bw = 0,
+		.peak_bw = 0,
+	},
+	{
+		.name = "nssnoc_ce_apb",
+		.avg_bw = 0,
+		.peak_bw = 0,
+	},
+	{
+		.name = "nssnoc_nss_csr",
+		.avg_bw = 100000,
+		.peak_bw = 100000,
+	},
+};
+
 static const struct regmap_config regmap_config_ipq9574 = {
 	.reg_bits = 32,
 	.reg_stride = 4,
@@ -133,6 +194,31 @@ static const struct ppe_of_data ppe_ipq9574_data = {
 	.edma_gen = EDMA_V2,
 	.edma_tag_mode = EDMA_TAG_NONE,
 	.edma_data = &edmav2_ipq9574_data,
+};
+
+static const struct ppe_mac_data ppe_ipq5424_mac_data = {
+	.xgmac_addr = 0x500000,
+	.xgmac_stride = 0x4000,
+	.xgmac_first_port = 1,
+	.xgmac_ports = GENMASK(3, 1),
+	.mux = PPE_MAC_MUX_IPQ9574,
+	.reset_delay_ms = 10,
+	.xgmac_init = true,
+	.mib = true,
+	.bm_flow_control = true,
+};
+
+static const struct ppe_of_data ppe_ipq5424_data = {
+	.clk_rate = IPQ5424_PPE_CLK_RATE,
+	.num_ports = IPQ5424_PPE_PORT_MAX,
+	.regmap_config = &regmap_config_ipq5424,
+	.icc_data = ipq5424_ppe_icc_data,
+	.num_icc_paths = ARRAY_SIZE(ipq5424_ppe_icc_data),
+	.config = &ppe_ipq5424_config,
+	.mac = &ppe_ipq5424_mac_data,
+	.edma_gen = EDMA_V2,
+	.edma_tag_mode = EDMA_TAG_NONE,
+	.edma_data = &edmav2_ipq5424_data,
 };
 
 static int ppe_clock_init_and_reset(struct ppe_device *ppe_dev)
@@ -319,6 +405,7 @@ static void qcom_ppe_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id qcom_ppe_of_match[] = {
+	{ .compatible = "qcom,ipq5424-ppe", .data = &ppe_ipq5424_data },
 	{ .compatible = "qcom,ipq9574-ppe", .data = &ppe_ipq9574_data },
 	{}
 };

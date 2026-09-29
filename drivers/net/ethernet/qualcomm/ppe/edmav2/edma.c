@@ -66,6 +66,50 @@ const struct edmav2_hw_info edmav2_ipq9574_data = {
 	.txdesc_fc_grp_id_mask = GENMASK(3, 1),
 };
 
+/* Rx Fill ring info for IPQ5424 */
+static const struct edmav2_ring_info ipq5424_rxfill_ring_info = {
+	.max_rings = 8,
+	.ring_start = 4,
+	.num_rings = 4,
+};
+
+/* Rx ring info for IPQ5424 */
+static const struct edmav2_ring_info ipq5424_rx_ring_info = {
+	.max_rings = 24,
+	.ring_start = 20,
+	.num_rings = 4,
+};
+
+/* Tx ring info for IPQ5424 */
+static const struct edmav2_ring_info ipq5424_tx_ring_info = {
+	.max_rings = 32,
+	.ring_start = 4,
+	.num_rings = 12,
+};
+
+/* Tx complete ring info for IPQ5424 */
+static const struct edmav2_ring_info ipq5424_txcmpl_ring_info = {
+	.max_rings = 32,
+	.ring_start = 4,
+	.num_rings = 12,
+};
+
+/* HW info for IPQ5424 */
+const struct edmav2_hw_info edmav2_ipq5424_data = {
+	.rxfill = &ipq5424_rxfill_ring_info,
+	.rx = &ipq5424_rx_ring_info,
+	.tx = &ipq5424_tx_ring_info,
+	.txcmpl = &ipq5424_txcmpl_ring_info,
+	.max_ports = 3,
+	.napi_budget_rx = 128,
+	.napi_budget_tx = 256,
+	.tso_max = 48,
+	.idx_mask = 0xffffffff,
+	.txdesc_fc_grp_id_mask = GENMASK(4, 1),
+	.rxdesc_no_pl_offset = true,
+	.rxfill_size_in_buffer1_reg = true,
+};
+
 /**
  * edmav2_configure_ucast_prio_map_tbl - Configure unicast priority map table.
  * @priv: EDMA

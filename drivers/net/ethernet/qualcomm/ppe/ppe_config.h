@@ -288,6 +288,7 @@ struct ppe_rss_hash_cfg {
 };
 
 extern const struct ppe_config_data ppe_ipq9574_config;
+extern const struct ppe_config_data ppe_ipq5424_config;
 
 int ppe_hw_config(struct ppe_device *ppe_dev);
 int ppe_queue_scheduler_set(struct ppe_device *ppe_dev,
