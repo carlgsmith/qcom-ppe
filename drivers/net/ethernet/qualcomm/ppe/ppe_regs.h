@@ -330,6 +330,17 @@
 #define PPE_PORT5_SEL_PCS1			BIT(4)
 #define PPE_PORT_SEL_XGMAC(x)			(BIT(8) << ((x) - 1))
 
+/* The bits of IPQ8074. The PCS of a port is selected with a field, and the
+ * MAC is the GMAC when the bit is set.
+ */
+#define PPE_IPQ8074_PORT4_PCS_SEL		BIT(0)
+#define PPE_IPQ8074_PORT5_PCS_SEL		GENMASK(2, 1)
+#define PPE_IPQ8074_PORT5_PCS0			1
+#define PPE_IPQ8074_PORT5_PCS1			2
+#define PPE_IPQ8074_PORT5_GMAC_SEL		BIT(3)
+#define PPE_IPQ8074_PORT6_PCS_SEL		BIT(4)
+#define PPE_IPQ8074_PORT6_GMAC_SEL		BIT(5)
+
 /* The bits of IPQ6018. */
 #define PPE_CPPE_PORT3_PCS_SEL			GENMASK(1, 0)
 #define PPE_CPPE_PORT3_PCS0_CH4			1

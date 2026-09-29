@@ -565,6 +565,21 @@ void edmav1_regs_dump(struct edma *edma, void *buf)
 	}
 }
 
+/* The IPQ8074 has 8 txcmpl rings for its 24 txdesc rings, its own interrupt
+ * blocks, and no burst mode. It cannot send a frame shorter than 33 bytes.
+ */
+const struct edmav1_soc_data edmav1_ipq8074_data = {
+	.txcmpl_base = 0x19000,
+	.tx_int_base = 0x21000,
+	.misc_int_mask = 0x1ff,
+	.txdesc_ring = 23,
+	.txcmpl_ring = 7,
+	.rxfill_ring = 7,
+	.rxdesc_ring = 15,
+	.tx_min_size = 33,
+	.txdesc2cmpl_map = true,
+};
+
 const struct edmav1_soc_data edmav1_ipq6018_data = {
 	.txcmpl_base = 0x79000,
 	.tx_int_base = 0x91000,

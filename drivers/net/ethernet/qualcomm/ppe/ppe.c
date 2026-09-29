@@ -272,6 +272,71 @@ static const struct regmap_config regmap_config_ipq6018 = {
 	.max_register = 0xbafffc,
 };
 
+/* The IPQ8074 has the registers of the IPQ6018 and a second XGMAC at 0x7000.
+ * Its ports 1 to 6 are physical ports and port 7 is an internal loopback port.
+ */
+static const struct regmap_range ipq8074_ppe_readable_ranges[] = {
+	regmap_reg_range(0x0, 0x1ff),		/* Global */
+	regmap_reg_range(0x400, 0x5ff),		/* LPI CSR */
+	regmap_reg_range(0x1000, 0x1dff),	/* GMAC0 to GMAC6 */
+	regmap_reg_range(0x3000, 0x3fff),	/* XGMAC0 */
+	regmap_reg_range(0x7000, 0x7fff),	/* XGMAC1 */
+	regmap_reg_range(0xb000, 0xefff),	/* PRX CSR */
+	regmap_reg_range(0xf000, 0x1efff),	/* IPE */
+	regmap_reg_range(0x20000, 0x5ffff),	/* PTX CSR */
+	regmap_reg_range(0x60000, 0x9ffff),	/* IPE L2 CSR */
+	regmap_reg_range(0xb0000, 0xeffff),	/* IPO CSR */
+	regmap_reg_range(0x100000, 0x17ffff),	/* IPE PC */
+	regmap_reg_range(0x180000, 0x1bffff),	/* PRE IPO CSR */
+	regmap_reg_range(0x1d0000, 0x1dffff),	/* Tunnel parser */
+	regmap_reg_range(0x1e0000, 0x1effff),	/* Ingress parse */
+	regmap_reg_range(0x200000, 0x2fffff),	/* IPE L3 */
+	regmap_reg_range(0x300000, 0x3fffff),	/* IPE tunnel */
+	regmap_reg_range(0x400000, 0x4fffff),	/* Scheduler */
+	regmap_reg_range(0x600000, 0x6fffff),	/* BM */
+	regmap_reg_range(0x800000, 0x9fffff),	/* QM */
+	regmap_reg_range(0xb00000, 0xbaffff),	/* EDMA */
+};
+
+static const struct regmap_access_table ipq8074_ppe_reg_table = {
+	.yes_ranges = ipq8074_ppe_readable_ranges,
+	.n_yes_ranges = ARRAY_SIZE(ipq8074_ppe_readable_ranges),
+};
+
+static const struct regmap_config regmap_config_ipq8074 = {
+	.reg_bits = 32,
+	.reg_stride = 4,
+	.val_bits = 32,
+	.rd_table = &ipq8074_ppe_reg_table,
+	.wr_table = &ipq8074_ppe_reg_table,
+	.max_register = 0xbafffc,
+};
+
+static const struct ppe_mac_data ppe_ipq8074_mac_data = {
+	.xgmac_addr = 0x3000,
+	.xgmac_stride = 0x4000,
+	.xgmac_first_port = 5,
+	.xgmac_ports = BIT(5) | BIT(6),
+	.mux = PPE_MAC_MUX_IPQ8074,
+	.reset_delay_ms = 150,
+	.gmac_2500 = true,
+	.xgmac_lpbk_drain = true,
+};
+
+static const struct ppe_of_data ppe_ipq8074_data = {
+	.type = PPE_HPPE,
+	.regs = &ppe_hppe_regs,
+	.clk_rate = 300000000,
+	.num_ports = 8,
+	.regmap_config = &regmap_config_ipq8074,
+	.config = &ppe_ipq8074_config,
+	.mac = &ppe_ipq8074_mac_data,
+	.loopback_port = 7,
+	.edma_gen = EDMA_V1,
+	.edma_tag_mode = EDMA_TAG_DSA,
+	.edma_data = &edmav1_ipq8074_data,
+};
+
 static const struct ppe_mac_data ppe_ipq6018_mac_data = {
 	.xgmac_addr = 0x3000,
 	.xgmac_stride = 0x4000,
@@ -486,6 +551,7 @@ static const struct of_device_id qcom_ppe_of_match[] = {
 	{ .compatible = "qcom,ipq5424-ppe", .data = &ppe_ipq5424_data },
 	{ .compatible = "qcom,ipq9574-ppe", .data = &ppe_ipq9574_data },
 	{ .compatible = "qcom,ipq6018-ppe", .data = &ppe_ipq6018_data },
+	{ .compatible = "qcom,ipq8074-ppe", .data = &ppe_ipq8074_data },
 	{}
 };
 MODULE_DEVICE_TABLE(of, qcom_ppe_of_match);

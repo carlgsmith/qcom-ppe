@@ -38,10 +38,13 @@ enum ppe_mac_type {
  *	use channel 4 of the first PCS.
  * @PPE_MAC_MUX_IPQ9574: Each port selects the MAC, and port 5 selects
  *	the PCS.
+ * @PPE_MAC_MUX_IPQ8074: Port 4 has a fixed PCS, port 5 selects the PCS and
+ *	the MAC, and port 6 selects its MAC.
  */
 enum ppe_mac_mux {
 	PPE_MAC_MUX_IPQ6018,
 	PPE_MAC_MUX_IPQ9574,
+	PPE_MAC_MUX_IPQ8074,
 };
 
 /**

@@ -147,6 +147,7 @@ struct edma {
 
 struct edmav1_soc_data;
 extern const struct edmav1_soc_data edmav1_ipq6018_data;
+extern const struct edmav1_soc_data edmav1_ipq8074_data;
 struct edmav2_hw_info;
 extern const struct edmav2_hw_info edmav2_ipq9574_data;
 extern const struct edmav2_hw_info edmav2_ipq5424_data;

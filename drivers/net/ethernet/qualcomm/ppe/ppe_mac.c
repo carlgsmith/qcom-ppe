@@ -278,6 +278,40 @@ static void ppe_mac_mux_ipq9574(struct ppe_mac *mac, phy_interface_t interface)
 			   0 : PPE_PORT5_SEL_PCS1);
 }
 
+/* Port 5 connects to the first PCS in PSGMII mode and to the second one
+ * otherwise. The ports 5 and 6 select the GMAC or the XGMAC, and the PCS of
+ * port 4 is the first one.
+ */
+static void ppe_mac_mux_ipq8074(struct ppe_mac *mac, unsigned int mode,
+				phy_interface_t interface)
+{
+	bool gmac = ppe_mac_type_get(mac, mode, interface) == PPE_MAC_TYPE_GMAC;
+	u32 mask, val;
+
+	switch (mac->port) {
+	case 5:
+		mask = PPE_IPQ8074_PORT5_PCS_SEL | PPE_IPQ8074_PORT5_GMAC_SEL;
+		val = FIELD_PREP(PPE_IPQ8074_PORT5_PCS_SEL,
+				 interface == PHY_INTERFACE_MODE_PSGMII ?
+				 PPE_IPQ8074_PORT5_PCS0 : PPE_IPQ8074_PORT5_PCS1);
+		if (gmac)
+			val |= PPE_IPQ8074_PORT5_GMAC_SEL;
+		break;
+	case 6:
+		mask = PPE_IPQ8074_PORT6_PCS_SEL | PPE_IPQ8074_PORT6_GMAC_SEL;
+		val = PPE_IPQ8074_PORT6_PCS_SEL;
+		if (gmac)
+			val |= PPE_IPQ8074_PORT6_GMAC_SEL;
+		break;
+	default:
+		mask = PPE_IPQ8074_PORT4_PCS_SEL;
+		val = PPE_IPQ8074_PORT4_PCS_SEL;
+		break;
+	}
+
+	regmap_update_bits(mac->ppe_dev->regmap, PPE_PORT_MUX_CTRL_ADDR, mask, val);
+}
+
 /**
  * ppe_mac_prepare - Prepare the MAC and the mux for an interface mode.
  * @mac: MAC of the port.
@@ -297,6 +331,9 @@ int ppe_mac_prepare(struct ppe_mac *mac, unsigned int mode,
 		break;
 	case PPE_MAC_MUX_IPQ9574:
 		ppe_mac_mux_ipq9574(mac, interface);
+		break;
+	case PPE_MAC_MUX_IPQ8074:
+		ppe_mac_mux_ipq8074(mac, mode, interface);
 		break;
 	}
 
