@@ -31,6 +31,11 @@ description: |
   Ethernet DMA is used to transmit and receive packets between the six Ethernet
   ports and ARM host CPU.
 
+  The IPQ5424 PPE has three front panel ports and one FIFO interface for
+  Ethernet DMA. It needs other bus interconnect paths than the IPQ9574 PPE.
+  Its Ethernet DMA has 12 TX descriptor rings, 12 TX completion rings, 4 RX
+  descriptor rings and 4 RX fill rings.
+
   The follow diagram shows the PPE hardware block along with its connectivity
   to the external hardware blocks such clock hardware blocks (CMNPLL, GCC,
   NSS clock controller) and Ethernet PCS/PHY blocks. For depicting the PHY
@@ -77,6 +82,7 @@ description: |
 properties:
   compatible:
     enum:
+      - qcom,ipq5424-ppe
       - qcom,ipq9574-ppe
 
   reg:
@@ -105,24 +111,38 @@ properties:
     description: PPE switch miscellaneous interrupt
 
   interconnects:
-    items:
-      - description: Bus interconnect path leading to PPE switch core function
-      - description: Bus interconnect path leading to PPE register access
-      - description: Bus interconnect path leading to QoS generation
-      - description: Bus interconnect path leading to timeout reference
-      - description: Bus interconnect path leading to NSS NOC from memory NOC
-      - description: Bus interconnect path leading to memory NOC from NSS NOC
-      - description: Bus interconnect path leading to enhanced memory NOC from NSS NOC
+    oneOf:
+      - items:
+          - description: Bus interconnect path leading to PPE switch core function
+          - description: Bus interconnect path leading to PPE register access
+          - description: Bus interconnect path leading to QoS generation
+          - description: Bus interconnect path leading to timeout reference
+          - description: Bus interconnect path leading to NSS NOC from memory NOC
+          - description: Bus interconnect path leading to memory NOC from NSS NOC
+          - description: Bus interconnect path leading to enhanced memory NOC from NSS NOC
+      - items:
+          - description: Bus interconnect path leading to PPE switch core function
+          - description: Bus interconnect path leading to PPE register access
+          - description: Bus interconnect path leading to CE AXI
+          - description: Bus interconnect path leading to CE APB
+          - description: Bus interconnect path leading to NSS CSR access
 
   interconnect-names:
-    items:
-      - const: ppe
-      - const: ppe_cfg
-      - const: qos_gen
-      - const: timeout_ref
-      - const: nssnoc_memnoc
-      - const: memnoc_nssnoc
-      - const: memnoc_nssnoc_1
+    oneOf:
+      - items:
+          - const: ppe
+          - const: ppe_cfg
+          - const: qos_gen
+          - const: timeout_ref
+          - const: nssnoc_memnoc
+          - const: memnoc_nssnoc
+          - const: memnoc_nssnoc_1
+      - items:
+          - const: ppe
+          - const: ppe_cfg
+          - const: nssnoc_ce_axi
+          - const: nssnoc_ce_apb
+          - const: nssnoc_nss_csr
 
   ethernet-dma:
     type: object
@@ -130,7 +150,9 @@ properties:
     description:
       EDMA (Ethernet DMA) is used to transmit packets between PPE and ARM
       host CPU. There are 32 TX descriptor rings, 32 TX completion rings,
-      24 RX descriptor rings and 8 RX fill rings supported.
+      24 RX descriptor rings and 8 RX fill rings supported on the IPQ9574,
+      and 12 TX descriptor rings, 12 TX completion rings, 4 RX descriptor
+      rings and 4 RX fill rings on the IPQ5424.
 
     properties:
       clocks:
@@ -144,8 +166,16 @@ properties:
           - const: apb
 
       resets:
-        maxItems: 1
-        description: EDMA reset
+        minItems: 1
+        items:
+          - description: EDMA reset
+          - description: EDMA configuration reset
+
+      reset-names:
+        minItems: 1
+        items:
+          - const: edma
+          - const: edma_cfg
 
       interrupts:
         minItems: 65
@@ -229,6 +259,86 @@ required:
 
 allOf:
   - $ref: ethernet-switch.yaml
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: qcom,ipq9574-ppe
+    then:
+      properties:
+        clocks:
+          items:
+            - description: PPE core clock
+            - description: PPE APB (Advanced Peripheral Bus) clock
+            - description: PPE IPE (Ingress Process Engine) clock
+            - description: PPE BM, QM and scheduler clock
+        clock-names:
+          items:
+            - const: ppe
+            - const: apb
+            - const: ipe
+            - const: btq
+        interconnects:
+          minItems: 7
+          maxItems: 7
+        interconnect-names:
+          minItems: 7
+          maxItems: 7
+        ethernet-dma:
+          properties:
+            interrupts:
+              minItems: 65
+            interrupt-names:
+              minItems: 65
+        ethernet-ports:
+          patternProperties:
+            "^ethernet-port@[0-6]$":
+              properties:
+                resets:
+                  minItems: 3
+      required:
+        - interconnects
+        - interconnect-names
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: qcom,ipq5424-ppe
+    then:
+      properties:
+        clocks:
+          items:
+            - description: PPE core clock
+            - description: PPE APB (Advanced Peripheral Bus) clock
+            - description: PPE IPE (Ingress Process Engine) clock
+            - description: PPE BM, QM and scheduler clock
+        clock-names:
+          items:
+            - const: ppe
+            - const: apb
+            - const: ipe
+            - const: btq
+        interconnects:
+          minItems: 5
+          maxItems: 5
+        interconnect-names:
+          minItems: 5
+          maxItems: 5
+        ethernet-dma:
+          properties:
+            interrupts:
+              maxItems: 17
+            interrupt-names:
+              maxItems: 17
+        ethernet-ports:
+          patternProperties:
+            "^ethernet-port@[0-6]$":
+              properties:
+                resets:
+                  minItems: 3
+      required:
+        - interconnects
+        - interconnect-names
 
 unevaluatedProperties: false
 
