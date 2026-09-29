@@ -220,6 +220,16 @@ static int qcom_ppe_probe(struct platform_device *pdev)
 	if (ret)
 		return dev_err_probe(dev, ret, "PPE HW config failed\n");
 
+	if (data->edma_gen != EDMA_NONE) {
+		struct edma_config edma_cfg = {
+			.tag_mode = data->edma_tag_mode,
+		};
+
+		ret = edma_init(ppe_dev, &edma_cfg, &ppe_dev->edma);
+		if (ret)
+			return dev_err_probe(dev, ret, "EDMA init failed\n");
+	}
+
 	ppe_debugfs_setup(ppe_dev);
 	platform_set_drvdata(pdev, ppe_dev);
 
@@ -232,6 +242,8 @@ static void qcom_ppe_remove(struct platform_device *pdev)
 
 	ppe_dev = platform_get_drvdata(pdev);
 	ppe_debugfs_teardown(ppe_dev);
+	if (ppe_dev->edma)
+		edma_fini(ppe_dev->edma);
 }
 
 static const struct of_device_id qcom_ppe_of_match[] = {

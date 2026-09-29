@@ -9,11 +9,14 @@
 #include <linux/compiler.h>
 #include <linux/interconnect.h>
 
+#include "edma.h"
+
 struct device;
 struct regmap;
 struct regmap_config;
 struct dentry;
 struct ppe_config_data;
+struct edma;
 
 /**
  * struct ppe_of_data - Per-SoC PPE data, selected by the compatible string.
@@ -23,6 +26,9 @@ struct ppe_config_data;
  * @icc_data: Interconnect path descriptions.
  * @num_icc_paths: Number of interconnect paths.
  * @config: BM, QM and scheduler tables, owned by ppe_config.c.
+ * @edma_gen: EDMA generation, EDMA_NONE if the SoC has no EDMA support.
+ * @edma_tag_mode: Frame format on the EDMA conduit.
+ * @edma_data: Data of the SoC for the EDMA implementation.
  */
 struct ppe_of_data {
 	unsigned long clk_rate;
@@ -31,6 +37,9 @@ struct ppe_of_data {
 	const struct icc_bulk_data *icc_data;
 	unsigned int num_icc_paths;
 	const struct ppe_config_data *config;
+	enum edma_gen edma_gen;
+	enum edma_tag_mode edma_tag_mode;
+	const void *edma_data;
 };
 
 /**
@@ -38,6 +47,7 @@ struct ppe_of_data {
  * @dev: PPE device structure.
  * @regmap: PPE register map.
  * @data: Per-SoC data.
+ * @edma: EDMA instance, NULL if the SoC has no EDMA support.
  * @clk_rate: PPE clock rate.
  * @num_ports: Number of PPE ports.
  * @debugfs_root: Debugfs root entry.
@@ -52,6 +62,7 @@ struct ppe_device {
 	struct device *dev;
 	struct regmap *regmap;
 	const struct ppe_of_data *data;
+	struct edma *edma;
 	unsigned long clk_rate;
 	unsigned int num_ports;
 	struct dentry *debugfs_root;
