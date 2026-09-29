@@ -564,3 +564,15 @@ void edmav1_regs_dump(struct edma *edma, void *buf)
 		*out++ = val;
 	}
 }
+
+const struct edmav1_soc_data edmav1_ipq6018_data = {
+	.txcmpl_base = 0x79000,
+	.tx_int_base = 0x91000,
+	.misc_int_mask = 0xff,
+	.txdesc_ring = 23,
+	.txcmpl_ring = 23,
+	.rxfill_ring = 7,
+	.rxdesc_ring = 15,
+	.burst_enable = true,
+	.axiw_enable = true,
+};

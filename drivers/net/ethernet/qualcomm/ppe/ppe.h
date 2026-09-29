@@ -40,6 +40,7 @@ enum ppe_type {
 };
 
 /* Features that depend on the type of the PPE. */
+#define PPE_CAP_SERVCODE	BIT(0)	/* Service code used by the EDMA v2 transmit path. */
 #define PPE_CAP_PORT_RX_CNT	BIT(1)	/* Per-port RX counter tables. */
 
 /**
@@ -89,6 +90,7 @@ extern const struct ppe_regs ppe_appe_regs;
  * @num_icc_paths: Number of interconnect paths.
  * @config: BM, QM and scheduler tables, owned by ppe_config.c.
  * @mac: Data of the port MACs, NULL if the SoC has no port MACs.
+ * @loopback_port: The internal loopback port of the PPE.
  * @edma_gen: EDMA generation, EDMA_NONE if the SoC has no EDMA support.
  * @edma_tag_mode: Frame format on the EDMA conduit.
  * @edma_data: Data of the SoC for the EDMA implementation.
@@ -104,6 +106,7 @@ struct ppe_of_data {
 	unsigned int num_icc_paths;
 	const struct ppe_config_data *config;
 	const struct ppe_mac_data *mac;
+	unsigned int loopback_port;
 	enum edma_gen edma_gen;
 	enum edma_tag_mode edma_tag_mode;
 	const void *edma_data;

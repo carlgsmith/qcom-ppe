@@ -1054,6 +1054,232 @@ static const struct ppe_port_schedule_resource ipq9574_ppe_scheduler_res[] = {
 	},
 };
 
+/* IPQ6018 has a smaller buffer pool than IPQ9574 and five physical ports.
+ * BM ports 0-7 are for EDMA port 0, BM ports 8-12 are for PPE physical ports
+ * 1-5, and BM ports 13-14 are internal. The pool of 1024 buffers is
+ * assigned to 'group0'.
+ */
+static const struct ppe_bm_port_config ipq6018_ppe_bm_port_config[] = {
+	{
+		/* Buffer configuration for the BM port ID 0-7 of EDMA. */
+		.port_id_start	= 0,
+		.port_id_end	= 7,
+		.pre_alloc	= 0,
+		.in_fly_buf	= 100,
+		.ceil		= 216,
+		.weight		= 4,
+		.resume_offset	= 36,
+		.resume_ceil	= 0,
+		.dynamic	= true,
+	},
+	{
+		/* Buffer configuration for the BM port ID 8-12 of PPE ports. */
+		.port_id_start	= 8,
+		.port_id_end	= 12,
+		.pre_alloc	= 0,
+		.in_fly_buf	= 128,
+		.ceil		= 216,
+		.weight		= 4,
+		.resume_offset	= 36,
+		.resume_ceil	= 0,
+		.dynamic	= true,
+	},
+	{
+		/* Buffer configuration for the BM port ID 13-14 of EIP. */
+		.port_id_start	= 13,
+		.port_id_end	= 14,
+		.pre_alloc	= 0,
+		.in_fly_buf	= 40,
+		.ceil		= 216,
+		.weight		= 4,
+		.resume_offset	= 36,
+		.resume_ceil	= 0,
+		.dynamic	= true,
+	},
+};
+
+/* Default QM settings for unicast and multicast queues for IPQ6018. */
+static const struct ppe_qm_queue_config ipq6018_ppe_qm_queue_config[] = {
+	{
+		/* QM settings for unicast queues 0 to 255. */
+		.queue_start	= 0,
+		.queue_end	= 255,
+		.prealloc_buf	= 0,
+		.ceil		= 216,
+		.weight		= 4,
+		.resume_offset	= 36,
+		.dynamic	= true,
+	},
+	{
+		/* QM settings for multicast queues 256 to 299. */
+		.queue_start	= 256,
+		.queue_end	= 299,
+		.prealloc_buf	= 0,
+		.ceil		= 216,
+		.weight		= 0,
+		.resume_offset	= 36,
+		.dynamic	= false,
+	},
+};
+
+/* PPE scheduler configuration for BM on IPQ6018. The entries never use a
+ * backup port.
+ */
+static const struct ppe_scheduler_bm_config ipq6018_ppe_sch_bm_config[] = {
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 5, false, 0},
+	{true, PPE_SCH_EGRESS,  4, false, 0},
+	{true, PPE_SCH_INGRESS, 1, false, 0},
+	{true, PPE_SCH_EGRESS,  5, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+	{true, PPE_SCH_INGRESS, 4, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  5, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 2, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+	{true, PPE_SCH_INGRESS, 5, false, 0},
+	{true, PPE_SCH_EGRESS,  5, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  3, false, 0},
+	{true, PPE_SCH_INGRESS, 5, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  5, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 5, false, 0},
+	{true, PPE_SCH_EGRESS,  4, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 4, false, 0},
+	{true, PPE_SCH_EGRESS,  5, false, 0},
+	{true, PPE_SCH_INGRESS, 5, false, 0},
+	{true, PPE_SCH_EGRESS,  1, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  4, false, 0},
+	{true, PPE_SCH_INGRESS, 5, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  2, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+	{true, PPE_SCH_INGRESS, 5, false, 0},
+	{true, PPE_SCH_EGRESS,  5, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 3, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  5, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 5, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+	{true, PPE_SCH_INGRESS, 0, false, 0},
+	{true, PPE_SCH_EGRESS,  0, false, 0},
+	{true, PPE_SCH_INGRESS, 4, false, 0},
+	{true, PPE_SCH_EGRESS,  5, false, 0},
+	{true, PPE_SCH_INGRESS, 6, false, 0},
+	{true, PPE_SCH_EGRESS,  6, false, 0},
+	{true, PPE_SCH_INGRESS, 7, false, 0},
+	{true, PPE_SCH_EGRESS,  7, false, 0},
+};
+
+/* PPE scheduler configuration for QM on IPQ6018. The entries never use a
+ * backup dequeue port.
+ */
+static const struct ppe_scheduler_qm_config ipq6018_ppe_sch_qm_config[] = {
+	{0xB7, 0, 6, false, 0},
+	{0xBE, 3, 0, false, 0},
+	{0xDE, 6, 5, false, 0},
+	{0xDD, 0, 1, false, 0},
+	{0xBD, 5, 6, false, 0},
+	{0xBE, 1, 0, false, 0},
+	{0xEE, 6, 4, false, 0},
+	{0xCF, 0, 5, false, 0},
+	{0x9F, 4, 6, false, 0},
+	{0xBE, 5, 0, false, 0},
+	{0x7E, 6, 7, false, 0},
+	{0x5F, 0, 5, false, 0},
+	{0x9F, 7, 6, false, 0},
+	{0xBE, 5, 0, false, 0},
+	{0xFA, 6, 2, false, 0},
+	{0xBB, 0, 6, false, 0},
+	{0x9F, 2, 5, false, 0},
+	{0xCF, 6, 4, false, 0},
+	{0xEE, 5, 0, false, 0},
+	{0xBE, 4, 6, false, 0},
+	{0x3F, 0, 7, false, 0},
+	{0x5F, 6, 5, false, 0},
+	{0xDE, 7, 0, false, 0},
+	{0xBE, 5, 6, false, 0},
+	{0xB7, 0, 3, false, 0},
+	{0xE7, 6, 4, false, 0},
+	{0xEE, 3, 0, false, 0},
+	{0xBE, 4, 6, false, 0},
+	{0x9F, 0, 5, false, 0},
+	{0xDD, 6, 1, false, 0},
+	{0xFC, 5, 0, false, 0},
+	{0xBE, 1, 6, false, 0},
+	{0x9F, 0, 5, false, 0},
+	{0x5F, 6, 7, false, 0},
+	{0x7E, 5, 0, false, 0},
+	{0xBE, 7, 6, false, 0},
+	{0xAF, 0, 4, false, 0},
+	{0xCF, 6, 5, false, 0},
+	{0x9F, 4, 6, false, 0},
+	{0xBE, 5, 0, false, 0},
+	{0xFA, 6, 2, false, 0},
+	{0xDB, 0, 5, false, 0},
+	{0x9F, 2, 6, false, 0},
+	{0xBE, 5, 0, false, 0},
+	{0x7E, 6, 7, false, 0},
+	{0x6F, 0, 4, false, 0},
+	{0xAF, 7, 6, false, 0},
+	{0x9F, 4, 5, false, 0},
+	{0xDE, 6, 0, false, 0},
+	{0xF6, 5, 3, false, 0},
+};
+
 const struct ppe_regs ppe_hppe_regs = {
 	.mru_mtu_tbl_addr = PPE_HPPE_MRU_MTU_CTRL_TBL_ADDR,
 	.vsi_tbl_addr = PPE_HPPE_VSI_TBL_ADDR,
@@ -1169,6 +1395,27 @@ const struct ppe_config_data ppe_ipq5424_config = {
 	.sch_port_cfg_num = ARRAY_SIZE(ipq9574_ppe_port_sch_config),
 	.sch_res = ipq9574_ppe_scheduler_res,
 	.mru_mtu_tbl_inc = PPE_MRU_MTU_CTRL_TBL_INC,
+};
+
+/* The scheduler queue and flow resources of ports 1 to 7 are shared with
+ * IPQ9574. The configuration of the CPU port 0 has not been checked against
+ * the IPQ6018 hardware.
+ */
+const struct ppe_config_data ppe_ipq6018_config = {
+	.bm_group_buffers = 1024,
+	.bm_port_cfg = ipq6018_ppe_bm_port_config,
+	.bm_port_cfg_num = ARRAY_SIZE(ipq6018_ppe_bm_port_config),
+	.qm_group_buffers = 1506,
+	.qm_queue_cfg = ipq6018_ppe_qm_queue_config,
+	.qm_queue_cfg_num = ARRAY_SIZE(ipq6018_ppe_qm_queue_config),
+	.sch_bm_cfg = ipq6018_ppe_sch_bm_config,
+	.sch_bm_cfg_num = ARRAY_SIZE(ipq6018_ppe_sch_bm_config),
+	.sch_qm_cfg = ipq6018_ppe_sch_qm_config,
+	.sch_qm_cfg_num = ARRAY_SIZE(ipq6018_ppe_sch_qm_config),
+	.sch_port_cfg = ipq9574_ppe_port_sch_config,
+	.sch_port_cfg_num = ARRAY_SIZE(ipq9574_ppe_port_sch_config),
+	.sch_res = ipq9574_ppe_scheduler_res,
+	.mru_mtu_tbl_inc = 0x10,
 };
 
 /* Set the PPE queue level scheduler configuration. */
@@ -2311,6 +2558,9 @@ static int ppe_queue_dest_init(struct ppe_device *ppe_dev)
 static int ppe_servcode_init(struct ppe_device *ppe_dev)
 {
 	struct ppe_sc_cfg sc_cfg = {};
+
+	if (!ppe_has_cap(ppe_dev, PPE_CAP_SERVCODE))
+		return 0;
 
 	bitmap_zero(sc_cfg.bitmaps.counter, PPE_SC_BYPASS_COUNTER_SIZE);
 	bitmap_zero(sc_cfg.bitmaps.tunnel, PPE_SC_BYPASS_TUNNEL_SIZE);

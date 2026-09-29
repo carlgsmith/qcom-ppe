@@ -34,10 +34,13 @@ enum ppe_mac_type {
 
 /**
  * enum ppe_mac_mux - Layout of the port mux register.
+ * @PPE_MAC_MUX_IPQ6018: Port 5 selects the PCS and the MAC, and port 3 can
+ *	use channel 4 of the first PCS.
  * @PPE_MAC_MUX_IPQ9574: Each port selects the MAC, and port 5 selects
  *	the PCS.
  */
 enum ppe_mac_mux {
+	PPE_MAC_MUX_IPQ6018,
 	PPE_MAC_MUX_IPQ9574,
 };
 
@@ -49,8 +52,11 @@ enum ppe_mac_mux {
  * @xgmac_ports: Bit for each port that has an XGMAC
  * @mux: Layout of the port mux register
  * @reset_delay_ms: Time that the reset of a MAC is asserted for
+ * @gmac_2500: The GMAC handles 2500BASE-X without in-band autonegotiation
  * @xgmac_init: The XGMACs are set up at probe time, and not when the link
  *	is configured
+ * @xgmac_lpbk_drain: The transmitter of an XGMAC is looped back into its
+ *	egress path when the link goes down, so that the path is drained
  * @mib: The MACs have MIB counters
  * @bm_flow_control: The flow control of the buffer manager port follows the
  *	transmit pause of the MAC
@@ -62,7 +68,9 @@ struct ppe_mac_data {
 	unsigned long xgmac_ports;
 	enum ppe_mac_mux mux;
 	unsigned int reset_delay_ms;
+	bool gmac_2500;
 	bool xgmac_init;
+	bool xgmac_lpbk_drain;
 	bool mib;
 	bool bm_flow_control;
 };
@@ -113,6 +121,8 @@ void ppe_mac_link_down(struct ppe_mac *mac, unsigned int mode,
 		       phy_interface_t interface);
 int ppe_mac_set_address(struct ppe_mac *mac, const u8 *addr);
 u32 ppe_mac_xgmac_addr(const struct ppe_mac *mac);
+void ppe_mac_lpbk_init(struct ppe_device *ppe_dev);
+void ppe_mac_pcs_mux_init(struct ppe_device *ppe_dev);
 
 int ppe_mac_stats_start(struct ppe_mac *mac);
 void ppe_mac_stats_stop(struct ppe_mac *mac);

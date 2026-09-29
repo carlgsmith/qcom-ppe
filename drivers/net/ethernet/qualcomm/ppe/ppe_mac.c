@@ -79,8 +79,14 @@ static enum ppe_mac_type ppe_mac_type_get(const struct ppe_mac *mac,
 					  unsigned int mode,
 					  phy_interface_t interface)
 {
+	const struct ppe_mac_data *data = mac->ppe_dev->data->mac;
+
 	switch (interface) {
 	case PHY_INTERFACE_MODE_2500BASEX:
+		/* In-band autonegotiation is only supported by the XGMAC. */
+		if (data->gmac_2500 && !phylink_autoneg_inband(mode))
+			return PPE_MAC_TYPE_GMAC;
+
 		return PPE_MAC_TYPE_XGMAC;
 	case PHY_INTERFACE_MODE_USXGMII:
 	case PHY_INTERFACE_MODE_10GBASER:
@@ -107,6 +113,20 @@ static void ppe_mac_xgmac_set(struct ppe_mac *mac, bool enable)
 			   PPE_XGMAC_TXEN, enable ? PPE_XGMAC_TXEN : 0);
 	regmap_update_bits(mac->ppe_dev->regmap, base + PPE_XGMAC_RX_CONFIG_ADDR,
 			   PPE_XGMAC_RXEN, enable ? PPE_XGMAC_RXEN : 0);
+}
+
+/* The receive side is turned off in the same write. Only the transmitter has
+ * to drain, and the loop would otherwise learn the hosts behind the other
+ * ports onto this port.
+ */
+static void ppe_mac_xgmac_lpbk_drain(struct ppe_mac *mac)
+{
+	u32 reg = ppe_mac_xgmac_addr(mac) + PPE_XGMAC_RX_CONFIG_ADDR;
+
+	regmap_update_bits(mac->ppe_dev->regmap, reg,
+			   PPE_XGMAC_LOOPBACK | PPE_XGMAC_RXEN, PPE_XGMAC_LOOPBACK);
+	usleep_range(1000, 2000);
+	regmap_clear_bits(mac->ppe_dev->regmap, reg, PPE_XGMAC_LOOPBACK);
 }
 
 static void ppe_mac_gmac_link_up(struct ppe_mac *mac, int speed, int duplex,
@@ -210,6 +230,40 @@ static void ppe_mac_xgmac_init(struct ppe_mac *mac)
 				   PPE_XGMAC_CNTRST);
 }
 
+/* Set the interface dependent part of the port mux before the PCS and the
+ * MAC are configured.
+ */
+static void ppe_mac_mux_ipq6018(struct ppe_mac *mac, unsigned int mode,
+				phy_interface_t interface)
+{
+	u32 mask, val = 0;
+
+	if (mac->port != 5)
+		return;
+
+	mask = PPE_CPPE_PORT5_PCS_SEL | PPE_CPPE_PORT5_GMAC_SEL;
+	switch (interface) {
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_1000BASEX:
+		val = FIELD_PREP(PPE_CPPE_PORT5_PCS_SEL, PPE_CPPE_PORT5_PCS1_CH0);
+		break;
+	case PHY_INTERFACE_MODE_2500BASEX:
+		val = FIELD_PREP(PPE_CPPE_PORT5_PCS_SEL, PPE_CPPE_PORT5_PCS1_CH0);
+		if (ppe_mac_type_get(mac, mode, interface) == PPE_MAC_TYPE_XGMAC)
+			val |= PPE_CPPE_PORT5_GMAC_SEL;
+		break;
+	case PHY_INTERFACE_MODE_10GBASER:
+	case PHY_INTERFACE_MODE_USXGMII:
+		val = FIELD_PREP(PPE_CPPE_PORT5_PCS_SEL, PPE_CPPE_PORT5_PCS1_CH0) |
+		      PPE_CPPE_PORT5_GMAC_SEL;
+		break;
+	default:
+		return;
+	}
+
+	regmap_update_bits(mac->ppe_dev->regmap, PPE_PORT_MUX_CTRL_ADDR, mask, val);
+}
+
 /* Port 5 connects to the first PCS in PSGMII mode and to the second one
  * otherwise.
  */
@@ -238,6 +292,9 @@ int ppe_mac_prepare(struct ppe_mac *mac, unsigned int mode,
 		    phy_interface_t interface)
 {
 	switch (mac->ppe_dev->data->mac->mux) {
+	case PPE_MAC_MUX_IPQ6018:
+		ppe_mac_mux_ipq6018(mac, mode, interface);
+		break;
 	case PPE_MAC_MUX_IPQ9574:
 		ppe_mac_mux_ipq9574(mac, interface);
 		break;
@@ -426,6 +483,8 @@ void ppe_mac_link_down(struct ppe_mac *mac, unsigned int mode,
 		return;
 	}
 
+	if (data->xgmac_lpbk_drain)
+		ppe_mac_xgmac_lpbk_drain(mac);
 	ppe_mac_xgmac_set(mac, false);
 }
 
@@ -1205,4 +1264,71 @@ void ppe_mac_get_stats64(struct ppe_mac *mac,
 
 		spin_unlock(&mac->gmib_stats_lock);
 	}
+}
+
+/**
+ * ppe_mac_lpbk_init - Set up the loopback port.
+ * @ppe_dev: PPE device.
+ *
+ * The loopback port uses the GMAC after the physical ones as an internal drain
+ * path. Its enable register has the loopback bits in place of the RX and TX
+ * enable bits.
+ */
+void ppe_mac_lpbk_init(struct ppe_device *ppe_dev)
+{
+	unsigned int port = ppe_dev->data->loopback_port;
+
+	/* Only some types of PPE have the loopback port. */
+	if (!port)
+		return;
+
+	regmap_update_bits(ppe_dev->regmap,
+			   PPE_PORT_GMAC_ADDR(port) + PPE_LPBK_PPS_CTRL_INC,
+			   PPE_LPBK_PPS_THRESHOLD,
+			   FIELD_PREP(PPE_LPBK_PPS_THRESHOLD, 21));
+	regmap_write(ppe_dev->regmap, PPE_PORT_GMAC_ADDR(port),
+		     PPE_LPBK_EN | PPE_LPBK_CRC_STRIP_EN);
+	msleep(100);
+	ppe_port_txmac_set(ppe_dev, port, true);
+}
+
+/**
+ * ppe_mac_pcs_mux_init - Set the mux that port 3 shares with the first PCS.
+ * @ppe_dev: PPE device.
+ *
+ * Port 3 shares the channel 4 of the first PCS with the mux, which has to be
+ * set before the port comes up.
+ */
+void ppe_mac_pcs_mux_init(struct ppe_device *ppe_dev)
+{
+	struct device_node *ports_np;
+	int port3_ch = -1;
+
+	ports_np = of_get_child_by_name(ppe_dev->dev->of_node, "ethernet-ports");
+	if (!ports_np)
+		return;
+
+	for_each_available_child_of_node_scoped(ports_np, port_np) {
+		struct of_phandle_args pcs_args;
+		u32 port;
+
+		if (of_property_read_u32(port_np, "reg", &port) || port != 3)
+			continue;
+
+		if (of_parse_phandle_with_args(port_np, "pcs-handle",
+					       "#pcs-cells", 0, &pcs_args))
+			continue;
+
+		port3_ch = pcs_args.args[0];
+		of_node_put(pcs_args.np);
+	}
+
+	of_node_put(ports_np);
+
+	if (ppe_dev->data->mac->mux == PPE_MAC_MUX_IPQ6018 && port3_ch == 4)
+		regmap_update_bits(ppe_dev->regmap, PPE_PORT_MUX_CTRL_ADDR,
+				   PPE_CPPE_PORT3_PCS_SEL | PPE_CPPE_PCS0_CH4_SEL,
+				   FIELD_PREP(PPE_CPPE_PORT3_PCS_SEL,
+					      PPE_CPPE_PORT3_PCS0_CH4) |
+				   PPE_CPPE_PCS0_CH4_SEL);
 }

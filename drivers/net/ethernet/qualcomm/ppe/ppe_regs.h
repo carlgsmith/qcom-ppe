@@ -330,6 +330,14 @@
 #define PPE_PORT5_SEL_PCS1			BIT(4)
 #define PPE_PORT_SEL_XGMAC(x)			(BIT(8) << ((x) - 1))
 
+/* The bits of IPQ6018. */
+#define PPE_CPPE_PORT3_PCS_SEL			GENMASK(1, 0)
+#define PPE_CPPE_PORT3_PCS0_CH4			1
+#define PPE_CPPE_PORT5_PCS_SEL			GENMASK(5, 4)
+#define PPE_CPPE_PORT5_PCS1_CH0			1
+#define PPE_CPPE_PORT5_GMAC_SEL			BIT(6)
+#define PPE_CPPE_PCS0_CH4_SEL			BIT(7)
+
 /* The GMAC of port x. The GMAC after the physical ports is the loopback
  * port, which uses the same registers with other meanings.
  */
@@ -362,6 +370,12 @@
 #define PPE_GMAC_GOL_ADDR0_ADDR			0x8
 #define PPE_GMAC_GOL_ADDR1_ADDR			0xc
 
+/* The registers of the loopback port. */
+#define PPE_LPBK_EN				BIT(0)
+#define PPE_LPBK_CRC_STRIP_EN			BIT(3)
+#define PPE_LPBK_PPS_CTRL_INC			0x0c
+#define PPE_LPBK_PPS_THRESHOLD			GENMASK(8, 0)
+
 /* The registers of the XGMAC of a port. The address of the XGMAC depends on
  * the SoC.
  */
@@ -378,6 +392,7 @@
 
 #define PPE_XGMAC_RX_CONFIG_ADDR		0x4
 #define PPE_XGMAC_GPSL_M			GENMASK(29, 16)
+#define PPE_XGMAC_LOOPBACK			BIT(10)
 #define PPE_XGMAC_WD				BIT(7)
 #define PPE_XGMAC_GPSLEN			BIT(6)
 #define PPE_XGMAC_CST				BIT(2)

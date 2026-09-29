@@ -561,6 +561,8 @@ int ppe_port_init(struct ppe_device *ppe_dev)
 		if (ppe_port_has_netdev(ppe_dev, port_np, &port_id))
 			user_ports |= BIT(port_id);
 
+	ppe_mac_pcs_mux_init(ppe_dev);
+	ppe_mac_lpbk_init(ppe_dev);
 	ret = ppe_direct_fabric_init(ppe_dev, user_ports);
 	if (ret) {
 		of_node_put(ports_np);
