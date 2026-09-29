@@ -12,6 +12,8 @@
 #include <linux/bits.h>
 #include <linux/device.h>
 #include <linux/regmap.h>
+#include <linux/spinlock.h>
+#include <linux/unaligned.h>
 
 #include "ppe.h"
 #include "ppe_config.h"
@@ -1055,6 +1057,8 @@ const struct ppe_regs ppe_hppe_regs = {
 	.vsi_tbl_entries = PPE_HPPE_VSI_TBL_ENTRIES,
 	.eg_bridge_config_addr = PPE_HPPE_EG_BRIDGE_CONFIG_ADDR,
 	.port_eg_vlan_tbl_addr = PPE_HPPE_PORT_EG_VLAN_TBL_ADDR,
+	.l3_vp_port_tbl_addr = PPE_HPPE_L3_VP_PORT_TBL_ADDR,
+	.l3_vp_port_tbl_words = PPE_HPPE_L3_VP_PORT_TBL_WORDS,
 	.eg_vsi_counter_tbl_addr = PPE_HPPE_EG_VSI_COUNTER_TBL_ADDR,
 	.port_tx_counter_tbl_addr = PPE_HPPE_PORT_TX_COUNTER_TBL_ADDR,
 	.vport_tx_counter_tbl_addr = PPE_HPPE_VPORT_TX_COUNTER_TBL_ADDR,
@@ -1067,6 +1071,8 @@ const struct ppe_regs ppe_appe_regs = {
 	.vsi_tbl_entries = PPE_APPE_VSI_TBL_ENTRIES,
 	.eg_bridge_config_addr = PPE_APPE_EG_BRIDGE_CONFIG_ADDR,
 	.port_eg_vlan_tbl_addr = PPE_APPE_PORT_EG_VLAN_TBL_ADDR,
+	.l3_vp_port_tbl_addr = PPE_APPE_L3_VP_PORT_TBL_ADDR,
+	.l3_vp_port_tbl_words = PPE_APPE_L3_VP_PORT_TBL_WORDS,
 	.eg_vsi_counter_tbl_addr = PPE_APPE_EG_VSI_COUNTER_TBL_ADDR,
 	.port_tx_counter_tbl_addr = PPE_APPE_PORT_TX_COUNTER_TBL_ADDR,
 	.vport_tx_counter_tbl_addr = PPE_APPE_VPORT_TX_COUNTER_TBL_ADDR,
@@ -2540,6 +2546,428 @@ int ppe_hw_config(struct ppe_device *ppe_dev)
 		return ret;
 
 	return ppe_bridge_init(ppe_dev);
+}
+
+/**
+ * ppe_vsi_alloc - Allocate a VSI.
+ * @ppe_dev: PPE device.
+ *
+ * The VSI starts with no member port.
+ *
+ * Return: the VSI id, or a negative error code.
+ */
+int ppe_vsi_alloc(struct ppe_device *ppe_dev)
+{
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
+	u32 reg, val[2] = { 0, PPE_VSI_W1_NEW_ADDR_LRN_EN |
+			       PPE_VSI_W1_STATION_MOVE_LRN_EN };
+	unsigned int vsi;
+	int ret;
+
+	vsi = find_first_zero_bit(ppe_dev->vsi_bitmap, regs->vsi_tbl_entries);
+	if (vsi >= regs->vsi_tbl_entries)
+		return -ENOSPC;
+
+	reg = regs->vsi_tbl_addr + vsi * PPE_VSI_TBL_INC;
+	ret = regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+	if (ret)
+		return ret;
+
+	set_bit(vsi, ppe_dev->vsi_bitmap);
+
+	return vsi;
+}
+
+/**
+ * ppe_vsi_free - Release a VSI.
+ * @ppe_dev: PPE device.
+ * @vsi: VSI id from ppe_vsi_alloc().
+ */
+void ppe_vsi_free(struct ppe_device *ppe_dev, u32 vsi)
+{
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
+	u32 reg = regs->vsi_tbl_addr + vsi * PPE_VSI_TBL_INC;
+	u32 val[2] = {};
+
+	regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+	clear_bit(vsi, ppe_dev->vsi_bitmap);
+}
+
+/**
+ * ppe_vsi_reserve - Mark a VSI as in use.
+ * @ppe_dev: PPE device.
+ * @vsi: VSI id.
+ */
+void ppe_vsi_reserve(struct ppe_device *ppe_dev, u32 vsi)
+{
+	set_bit(vsi, ppe_dev->vsi_bitmap);
+}
+
+/**
+ * ppe_vsi_set - Set the ports of a VSI.
+ * @ppe_dev: PPE device.
+ * @vsi: VSI id.
+ * @member: Bitmap of the member ports.
+ * @uuc: Bitmap of the ports that receive the unknown unicast frames.
+ * @umc: Bitmap of the ports that receive the unknown multicast frames.
+ * @bc: Bitmap of the ports that receive the broadcast frames.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_vsi_set(struct ppe_device *ppe_dev, u32 vsi, u32 member, u32 uuc,
+		u32 umc, u32 bc)
+{
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
+	u32 reg = regs->vsi_tbl_addr + vsi * PPE_VSI_TBL_INC;
+	u32 val[2];
+
+	val[0] = FIELD_PREP(PPE_VSI_W0_MEMBER_PORT_BITMAP, member) |
+		 FIELD_PREP(PPE_VSI_W0_UUC_BITMAP, uuc) |
+		 FIELD_PREP(PPE_VSI_W0_UMC_BITMAP, umc) |
+		 FIELD_PREP(PPE_VSI_W0_BC_BITMAP, bc);
+	val[1] = PPE_VSI_W1_NEW_ADDR_LRN_EN | PPE_VSI_W1_STATION_MOVE_LRN_EN;
+
+	return regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+}
+
+/**
+ * ppe_vsi_member_set - Set the member ports of a VSI.
+ * @ppe_dev: PPE device.
+ * @vsi: VSI id.
+ * @portmask: Bitmap of the member ports. The same ports receive the
+ *	unknown unicast, the unknown multicast and the broadcast frames.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_vsi_member_set(struct ppe_device *ppe_dev, u32 vsi, u32 portmask)
+{
+	return ppe_vsi_set(ppe_dev, vsi, portmask, portmask, portmask, portmask);
+}
+
+/**
+ * ppe_port_vsi_set - Set the default VSI of a port.
+ * @ppe_dev: PPE device.
+ * @port: PPE port.
+ * @vsi: VSI id, or PPE_VSI_INVALID to remove the assignment.
+ *
+ * The entry takes effect when its last word is written. The whole entry is
+ * read and written back, because a write of the second word alone is not
+ * applied.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_port_vsi_set(struct ppe_device *ppe_dev, int port, u32 vsi)
+{
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
+	u32 reg = regs->l3_vp_port_tbl_addr + port * PPE_L3_VP_PORT_TBL_INC;
+	u32 vsi_mask = GENMASK(9 + ilog2(regs->vsi_tbl_entries), 10);
+	u32 val[PPE_L3_VP_PORT_TBL_WORDS_MAX];
+	int ret;
+
+	ret = regmap_bulk_read(ppe_dev->regmap, reg, val,
+			       regs->l3_vp_port_tbl_words);
+	if (ret)
+		return ret;
+
+	val[1] &= ~(PPE_L3_VP_PORT_W1_VSI_VALID | vsi_mask);
+	if (vsi != PPE_VSI_INVALID)
+		val[1] |= PPE_L3_VP_PORT_W1_VSI_VALID | field_prep(vsi_mask, vsi);
+
+	return regmap_bulk_write(ppe_dev->regmap, reg, val,
+				 regs->l3_vp_port_tbl_words);
+}
+
+/* The command ids run from 1, because a result register that has posted
+ * nothing reads 0. Each result register has its own counter, so the id that
+ * an operation waits for is never the one that its register already holds.
+ */
+static u32 ppe_fdb_next_cmd_id(u32 *counter)
+{
+	*counter = (*counter % PPE_FDB_OP_CMD_ID) + 1;
+
+	return *counter;
+}
+
+/* The result register holds the id of the last command that finished. An
+ * operation waits for its own id before it takes what the engine wrote.
+ */
+static int ppe_fdb_wait(struct ppe_device *ppe_dev, u32 rslt_reg, u32 cmd_id)
+{
+	u32 val;
+
+	return regmap_read_poll_timeout_atomic(ppe_dev->regmap, rslt_reg, val,
+					       FIELD_GET(PPE_FDB_RSLT_CMD_ID, val) == cmd_id,
+					       1, PPE_FDB_OP_TIMEOUT_US);
+}
+
+static int ppe_fdb_write_op(struct ppe_device *ppe_dev, u32 type,
+			    u32 hash_block, const u32 *data)
+{
+	u32 cmd_id;
+	int ret;
+
+	spin_lock_bh(&ppe_dev->fdb_lock);
+
+	if (data) {
+		ret = regmap_bulk_write(ppe_dev->regmap, PPE_FDB_OP_DATA_ADDR,
+					data, PPE_FDB_DATA_WORDS);
+		if (ret)
+			goto out;
+	}
+
+	cmd_id = ppe_fdb_next_cmd_id(&ppe_dev->fdb_cmd_id);
+	ret = regmap_write(ppe_dev->regmap, PPE_FDB_OP_ADDR,
+			   FIELD_PREP(PPE_FDB_OP_CMD_ID, cmd_id) |
+			   FIELD_PREP(PPE_FDB_OP_TYPE, type) |
+			   FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, hash_block));
+	if (ret)
+		goto out;
+
+	ret = ppe_fdb_wait(ppe_dev, PPE_FDB_OP_RSLT_ADDR, cmd_id);
+out:
+	spin_unlock_bh(&ppe_dev->fdb_lock);
+
+	return ret;
+}
+
+static int ppe_fdb_read_op(struct ppe_device *ppe_dev, u32 op_bits,
+			   const u32 *key, u32 *data)
+{
+	u32 cmd_id;
+	int ret;
+
+	spin_lock_bh(&ppe_dev->fdb_lock);
+
+	ret = regmap_bulk_write(ppe_dev->regmap, PPE_FDB_RD_OP_DATA_ADDR, key,
+				PPE_FDB_DATA_WORDS);
+	if (ret)
+		goto out;
+
+	cmd_id = ppe_fdb_next_cmd_id(&ppe_dev->fdb_rd_cmd_id);
+	ret = regmap_write(ppe_dev->regmap, PPE_FDB_RD_OP_ADDR,
+			   op_bits |
+			   FIELD_PREP(PPE_FDB_OP_CMD_ID, cmd_id) |
+			   FIELD_PREP(PPE_FDB_OP_TYPE, PPE_FDB_OP_TYPE_GET) |
+			   FIELD_PREP(PPE_FDB_OP_HASH_BLOCK,
+				      PPE_FDB_HASH_BLOCK_ALL));
+	if (ret)
+		goto out;
+
+	ret = ppe_fdb_wait(ppe_dev, PPE_FDB_RD_OP_RSLT_ADDR, cmd_id);
+	if (ret)
+		goto out;
+
+	ret = regmap_bulk_read(ppe_dev->regmap, PPE_FDB_RD_RSLT_DATA_ADDR, data,
+			       PPE_FDB_DATA_WORDS);
+out:
+	spin_unlock_bh(&ppe_dev->fdb_lock);
+
+	return ret;
+}
+
+/* The address is split over the first two words. The second word also has
+ * the VSI.
+ */
+static void ppe_fdb_key(const unsigned char *addr, u32 vsi, u32 *data)
+{
+	data[0] = get_unaligned_be32(addr + 2);
+	data[1] = get_unaligned_be16(addr) |
+		  FIELD_PREP(PPE_FDB_DATA1_VSI, vsi);
+	data[2] = 0;
+}
+
+static void ppe_fdb_encode(const unsigned char *addr, u32 vsi, u32 dst,
+			   u32 dst_type, u32 age, u32 *data)
+{
+	ppe_fdb_key(addr, vsi, data);
+
+	data[1] |= PPE_FDB_DATA1_VALID | PPE_FDB_DATA1_LKP_VALID |
+		   FIELD_PREP(PPE_FDB_DATA1_DST_LO, dst);
+	data[2] = FIELD_PREP(PPE_FDB_DATA2_DST_HI, dst >> PPE_FDB_DST_LO_BITS) |
+		  FIELD_PREP(PPE_FDB_DATA2_DST_TYPE, dst_type) |
+		  FIELD_PREP(PPE_FDB_DATA2_HIT_AGE, age);
+}
+
+static u32 ppe_fdb_dst(const u32 *data)
+{
+	return FIELD_GET(PPE_FDB_DATA1_DST_LO, data[1]) |
+	       (FIELD_GET(PPE_FDB_DATA2_DST_HI, data[2]) << PPE_FDB_DST_LO_BITS);
+}
+
+/**
+ * ppe_fdb_add - Add a unicast FDB entry.
+ * @ppe_dev: PPE device.
+ * @addr: MAC address.
+ * @port: Destination port.
+ * @vsi: VSI of the entry.
+ *
+ * The entry does not age.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_fdb_add(struct ppe_device *ppe_dev, const unsigned char *addr,
+		int port, u32 vsi)
+{
+	u32 data[PPE_FDB_DATA_WORDS];
+
+	ppe_fdb_encode(addr, vsi, port, PPE_FDB_DST_PORT, PPE_FDB_AGE_STATIC,
+		       data);
+
+	return ppe_fdb_write_op(ppe_dev, PPE_FDB_OP_TYPE_ADD,
+				PPE_FDB_HASH_BLOCK_ALL, data);
+}
+
+/**
+ * ppe_fdb_del - Delete a unicast FDB entry.
+ * @ppe_dev: PPE device.
+ * @addr: MAC address.
+ * @port: Destination port of the entry.
+ * @vsi: VSI of the entry.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_fdb_del(struct ppe_device *ppe_dev, const unsigned char *addr,
+		int port, u32 vsi)
+{
+	u32 data[PPE_FDB_DATA_WORDS];
+
+	ppe_fdb_encode(addr, vsi, port, PPE_FDB_DST_PORT, PPE_FDB_AGE_DYNAMIC,
+		       data);
+
+	return ppe_fdb_write_op(ppe_dev, PPE_FDB_OP_TYPE_DEL,
+				PPE_FDB_HASH_BLOCK_ALL, data);
+}
+
+/**
+ * ppe_fdb_read_entry - Read one slot of the FDB table.
+ * @ppe_dev: PPE device.
+ * @index: Slot number, from 0 to PPE_FDB_TBL_NUM - 1.
+ * @addr: Filled with the MAC address.
+ * @vsi: Filled with the VSI.
+ * @port: Filled with the destination port.
+ * @is_static: Filled with whether the entry does not age.
+ *
+ * Return: 0 on success, -ENOENT if the slot has no unicast entry, or another
+ * negative error code on failure.
+ */
+int ppe_fdb_read_entry(struct ppe_device *ppe_dev, u32 index,
+		       unsigned char *addr, u32 *vsi, int *port,
+		       bool *is_static)
+{
+	u32 key[PPE_FDB_DATA_WORDS] = {};
+	u32 data[PPE_FDB_DATA_WORDS];
+	int ret;
+
+	ret = ppe_fdb_read_op(ppe_dev,
+			      PPE_FDB_OP_MODE |
+			      FIELD_PREP(PPE_FDB_OP_ENTRY_IDX, index),
+			      key, data);
+	if (ret)
+		return ret;
+
+	if (!(data[1] & PPE_FDB_DATA1_VALID) ||
+	    FIELD_GET(PPE_FDB_DATA2_DST_TYPE, data[2]) != PPE_FDB_DST_PORT)
+		return -ENOENT;
+
+	put_unaligned_be32(data[0], addr + 2);
+	put_unaligned_be16(data[1], addr);
+
+	*vsi = FIELD_GET(PPE_FDB_DATA1_VSI, data[1]);
+	*port = ppe_fdb_dst(data);
+	*is_static = FIELD_GET(PPE_FDB_DATA2_HIT_AGE, data[2]) ==
+		     PPE_FDB_AGE_STATIC;
+
+	return 0;
+}
+
+/**
+ * ppe_fdb_flush - Flush the FDB table.
+ * @ppe_dev: PPE device.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_fdb_flush(struct ppe_device *ppe_dev)
+{
+	return ppe_fdb_write_op(ppe_dev, PPE_FDB_OP_TYPE_FLUSH, 0, NULL);
+}
+
+/**
+ * ppe_fdb_mcast_lookup - Look up the ports of a multicast FDB entry.
+ * @ppe_dev: PPE device.
+ * @addr: MAC address.
+ * @vsi: VSI of the entry.
+ * @portmap: Filled with the bitmap of the destination ports.
+ *
+ * Return: 0 on success, -ENOENT if there is no multicast entry, or another
+ * negative error code on failure.
+ */
+int ppe_fdb_mcast_lookup(struct ppe_device *ppe_dev, const unsigned char *addr,
+			 u32 vsi, u32 *portmap)
+{
+	u32 key[PPE_FDB_DATA_WORDS];
+	u32 data[PPE_FDB_DATA_WORDS];
+	int ret;
+
+	ppe_fdb_key(addr, vsi, key);
+
+	ret = ppe_fdb_read_op(ppe_dev, 0, key, data);
+	if (ret)
+		return ret;
+
+	/* The destination of a unicast entry is a port number. Taken as a
+	 * bitmap it would name ports that the group does not have.
+	 */
+	if (!(data[1] & PPE_FDB_DATA1_VALID) ||
+	    FIELD_GET(PPE_FDB_DATA2_DST_TYPE, data[2]) != PPE_FDB_DST_PORTMAP)
+		return -ENOENT;
+
+	*portmap = ppe_fdb_dst(data);
+
+	return 0;
+}
+
+/**
+ * ppe_fdb_mcast_add - Add a multicast FDB entry.
+ * @ppe_dev: PPE device.
+ * @addr: MAC address.
+ * @portmap: Bitmap of the destination ports.
+ * @vsi: VSI of the entry.
+ *
+ * The entry does not age.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_fdb_mcast_add(struct ppe_device *ppe_dev, const unsigned char *addr,
+		      u32 portmap, u32 vsi)
+{
+	u32 data[PPE_FDB_DATA_WORDS];
+
+	ppe_fdb_encode(addr, vsi, portmap, PPE_FDB_DST_PORTMAP,
+		       PPE_FDB_AGE_STATIC, data);
+
+	return ppe_fdb_write_op(ppe_dev, PPE_FDB_OP_TYPE_ADD,
+				PPE_FDB_HASH_BLOCK_ALL, data);
+}
+
+/**
+ * ppe_fdb_mcast_del - Delete a multicast FDB entry.
+ * @ppe_dev: PPE device.
+ * @addr: MAC address.
+ * @portmap: Bitmap of the destination ports of the entry.
+ * @vsi: VSI of the entry.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_fdb_mcast_del(struct ppe_device *ppe_dev, const unsigned char *addr,
+		      u32 portmap, u32 vsi)
+{
+	u32 data[PPE_FDB_DATA_WORDS];
+
+	ppe_fdb_encode(addr, vsi, portmap, PPE_FDB_DST_PORTMAP,
+		       PPE_FDB_AGE_STATIC, data);
+
+	return ppe_fdb_write_op(ppe_dev, PPE_FDB_OP_TYPE_DEL,
+				PPE_FDB_HASH_BLOCK_ALL, data);
 }
 
 /**

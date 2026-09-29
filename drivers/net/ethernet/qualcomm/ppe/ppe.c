@@ -355,6 +355,7 @@ static int qcom_ppe_probe(struct platform_device *pdev)
 				     "PPE initialize regmap failed\n");
 	ppe_dev->dev = dev;
 	ppe_dev->data = data;
+	spin_lock_init(&ppe_dev->fdb_lock);
 	ppe_dev->clk_rate = data->clk_rate;
 	ppe_dev->num_ports = data->num_ports;
 	ppe_dev->num_icc_paths = num_icc;

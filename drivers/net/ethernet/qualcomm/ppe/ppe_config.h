@@ -328,6 +328,30 @@ int ppe_ring_queue_map_set(struct ppe_device *ppe_dev,
 /* The port that the EDMA is connected to. */
 #define PPE_CPU_PORT			0
 
+/* Removes the default VSI of a port. */
+#define PPE_VSI_INVALID			U32_MAX
+
 int ppe_port_txmac_set(struct ppe_device *ppe_dev, int port, bool enable);
 int ppe_port_mtu_set(struct ppe_device *ppe_dev, int port, u32 frame_size);
+int ppe_vsi_alloc(struct ppe_device *ppe_dev);
+void ppe_vsi_free(struct ppe_device *ppe_dev, u32 vsi);
+void ppe_vsi_reserve(struct ppe_device *ppe_dev, u32 vsi);
+int ppe_vsi_set(struct ppe_device *ppe_dev, u32 vsi, u32 member, u32 uuc,
+		u32 umc, u32 bc);
+int ppe_vsi_member_set(struct ppe_device *ppe_dev, u32 vsi, u32 portmask);
+int ppe_port_vsi_set(struct ppe_device *ppe_dev, int port, u32 vsi);
+int ppe_fdb_add(struct ppe_device *ppe_dev, const unsigned char *addr,
+		int port, u32 vsi);
+int ppe_fdb_del(struct ppe_device *ppe_dev, const unsigned char *addr,
+		int port, u32 vsi);
+int ppe_fdb_read_entry(struct ppe_device *ppe_dev, u32 index,
+		       unsigned char *addr, u32 *vsi, int *port,
+		       bool *is_static);
+int ppe_fdb_flush(struct ppe_device *ppe_dev);
+int ppe_fdb_mcast_lookup(struct ppe_device *ppe_dev, const unsigned char *addr,
+			 u32 vsi, u32 *portmap);
+int ppe_fdb_mcast_add(struct ppe_device *ppe_dev, const unsigned char *addr,
+		      u32 portmap, u32 vsi);
+int ppe_fdb_mcast_del(struct ppe_device *ppe_dev, const unsigned char *addr,
+		      u32 portmap, u32 vsi);
 #endif

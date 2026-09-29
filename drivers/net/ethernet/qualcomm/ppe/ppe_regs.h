@@ -260,6 +260,62 @@
 #define PPE_L2_PORT_SET_DST_INFO(tbl_cfg, value)		\
 	FIELD_MODIFY(PPE_L2_VP_PORT_W0_DST_INFO, tbl_cfg, value)
 
+/* L3 VP port table: the default VSI of a port. The DST_INFO of a port is in
+ * the L2 VP port table above. The entry has 3 words on the HPPE and CPPE,
+ * and 4 on the APPE and MPPE. The VSI field is as wide as the VSI number.
+ */
+#define PPE_HPPE_L3_VP_PORT_TBL_ADDR		0x201000
+#define PPE_APPE_L3_VP_PORT_TBL_ADDR		0x204000
+#define PPE_HPPE_L3_VP_PORT_TBL_WORDS		3
+#define PPE_APPE_L3_VP_PORT_TBL_WORDS		4
+#define PPE_L3_VP_PORT_TBL_INC			0x10
+#define PPE_L3_VP_PORT_TBL_WORDS_MAX		4
+#define PPE_L3_VP_PORT_W1_VSI_VALID		BIT(9)
+
+/* The FDB engine has one command and result register set for each of the
+ * write and read operations. The registers and fields are those of IPQ6018.
+ */
+#define PPE_FDB_OP_ADDR				0x60008
+#define PPE_FDB_RD_OP_ADDR			0x60010
+#define PPE_FDB_OP_RSLT_ADDR			0x60020
+#define PPE_FDB_RD_OP_RSLT_ADDR			0x60030
+#define PPE_FDB_RD_RSLT_DATA_ADDR		0x60200
+#define PPE_FDB_OP_DATA_ADDR			0x60230
+#define PPE_FDB_RD_OP_DATA_ADDR			0x60260
+#define PPE_FDB_DATA_WORDS			3
+#define PPE_FDB_OP_TIMEOUT_US			100
+#define PPE_FDB_TBL_NUM				2048
+
+#define PPE_FDB_OP_CMD_ID			GENMASK(3, 0)
+#define PPE_FDB_OP_TYPE				GENMASK(7, 5)
+#define PPE_FDB_OP_HASH_BLOCK			GENMASK(9, 8)
+#define PPE_FDB_OP_MODE				BIT(10)
+#define PPE_FDB_OP_ENTRY_IDX			GENMASK(21, 11)
+#define PPE_FDB_RSLT_CMD_ID			GENMASK(3, 0)
+
+#define PPE_FDB_OP_TYPE_ADD			0
+#define PPE_FDB_OP_TYPE_DEL			1
+#define PPE_FDB_OP_TYPE_GET			2
+#define PPE_FDB_OP_TYPE_FLUSH			4
+#define PPE_FDB_HASH_BLOCK_ALL			3
+
+#define PPE_FDB_DATA1_VALID			BIT(16)
+#define PPE_FDB_DATA1_LKP_VALID			BIT(17)
+#define PPE_FDB_DATA1_VSI			GENMASK(22, 18)
+#define PPE_FDB_DATA1_DST_LO			GENMASK(31, 23)
+#define PPE_FDB_DATA2_DST_HI			GENMASK(2, 0)
+#define PPE_FDB_DATA2_DST_TYPE			GENMASK(4, 3)
+#define PPE_FDB_DATA2_HIT_AGE			GENMASK(10, 9)
+
+/* The destination is a port number or a bitmap of ports. */
+#define PPE_FDB_DST_PORT			2
+#define PPE_FDB_DST_PORTMAP			3
+#define PPE_FDB_AGE_DYNAMIC			2
+#define PPE_FDB_AGE_STATIC			3
+
+/* The destination field has 12 bits, split over two words. */
+#define PPE_FDB_DST_LO_BITS			9
+
 /* Port mux: selects the GMAC or the XGMAC and the PCS channel of a port. */
 #define PPE_PORT_MUX_CTRL_ADDR			0x10
 
