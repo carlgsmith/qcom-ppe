@@ -36,6 +36,13 @@ description: |
   Its Ethernet DMA has 12 TX descriptor rings, 12 TX completion rings, 4 RX
   descriptor rings and 4 RX fill rings.
 
+  The IPQ6018 PPE has five front panel ports and an internal loopback port.
+  Ports are connected to the host CPU through Ethernet DMA that is
+  reached as port 0, the CPU port. It is not connected to bus interconnects.
+  Its Ethernet DMA has 24 TX descriptor rings, 24 TX completion rings, 16 RX
+  descriptor rings and 8 RX fill rings. A port with an "ethernet" property
+  is the CPU port of a DSA switch.
+
   The follow diagram shows the PPE hardware block along with its connectivity
   to the external hardware blocks such clock hardware blocks (CMNPLL, GCC,
   NSS clock controller) and Ethernet PCS/PHY blocks. For depicting the PHY
@@ -83,24 +90,19 @@ properties:
   compatible:
     enum:
       - qcom,ipq5424-ppe
+      - qcom,ipq6018-ppe
       - qcom,ipq9574-ppe
 
   reg:
     maxItems: 1
 
   clocks:
-    items:
-      - description: PPE core clock
-      - description: PPE APB (Advanced Peripheral Bus) clock
-      - description: PPE IPE (Ingress Process Engine) clock
-      - description: PPE BM, QM and scheduler clock
+    minItems: 4
+    maxItems: 14
 
   clock-names:
-    items:
-      - const: ppe
-      - const: apb
-      - const: ipe
-      - const: btq
+    minItems: 4
+    maxItems: 14
 
   resets:
     maxItems: 1
@@ -178,11 +180,11 @@ properties:
           - const: edma_cfg
 
       interrupts:
-        minItems: 65
+        minItems: 10
         maxItems: 65
 
       interrupt-names:
-        minItems: 65
+        minItems: 10
         maxItems: 65
         items:
           oneOf:
@@ -205,16 +207,22 @@ properties:
 
   ethernet-ports:
     patternProperties:
-      "^ethernet-port@[1-6]+$":
+      "^ethernet-port@[0-6]$":
         type: object
         unevaluatedProperties: false
         $ref: ethernet-switch-port.yaml#
 
         properties:
           reg:
-            minimum: 1
+            minimum: 0
             maximum: 6
-            description: PPE Ethernet port ID
+            description: PPE Ethernet port ID, port 0 is the CPU port
+
+          ethernet:
+            $ref: /schemas/types.yaml#/definitions/phandle
+            description:
+              Ethernet DMA that serves the CPU port. The port with this
+              property is the CPU port of a DSA switch.
 
           clocks:
             items:
@@ -229,12 +237,14 @@ properties:
               - const: tx
 
           resets:
+            minItems: 1
             items:
               - description: Port MAC reset
               - description: Port RX reset
               - description: Port TX reset
 
           reset-names:
+            minItems: 1
             items:
               - const: mac
               - const: rx
@@ -242,10 +252,19 @@ properties:
 
         required:
           - reg
-          - clocks
-          - clock-names
-          - resets
-          - reset-names
+
+        if:
+          properties:
+            reg:
+              minimum: 1
+          required:
+            - reg
+        then:
+          required:
+            - clocks
+            - clock-names
+            - resets
+            - reset-names
 
 required:
   - compatible
@@ -253,8 +272,6 @@ required:
   - clocks
   - clock-names
   - resets
-  - interconnects
-  - interconnect-names
   - ethernet-dma
 
 allOf:
@@ -339,6 +356,60 @@ allOf:
       required:
         - interconnects
         - interconnect-names
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: qcom,ipq6018-ppe
+    then:
+      properties:
+        clocks:
+          items:
+            - description: PPE core clock
+            - description: PPE APB (Advanced Peripheral Bus) clock
+            - description: PPE IPE (Ingress Process Engine) clock
+            - description: NSS NOC clock of the PPE
+            - description: NSS NOC clock of the PPE register access
+            - description: CMN PLL AHB clock
+            - description: CMN PLL system clock
+            - description: MDIO AHB clock
+            - description: NSS NOC clock
+            - description: NSS NOC to SNOC clock
+            - description: SNOC to NSS NOC clock
+            - description: NSS crypto clock
+            - description: NSS NOC crypto clock
+            - description: NSS PTP reference clock
+        clock-names:
+          items:
+            - const: ppe
+            - const: apb
+            - const: ipe
+            - const: nssnoc_ppe
+            - const: nssnoc_ppe_cfg
+            - const: cmn_ahb
+            - const: cmn_sys
+            - const: mdio_ahb
+            - const: nss_noc
+            - const: nssnoc_snoc
+            - const: snoc_nssnoc
+            - const: crypto
+            - const: nssnoc_crypto
+            - const: ptp_ref
+        interrupts: false
+        interconnects: false
+        interconnect-names: false
+        ethernet-dma:
+          properties:
+            interrupts:
+              maxItems: 10
+            interrupt-names:
+              maxItems: 10
+        ethernet-ports:
+          patternProperties:
+            "^ethernet-port@[0-6]$":
+              properties:
+                resets:
+                  maxItems: 1
 
 unevaluatedProperties: false
 
