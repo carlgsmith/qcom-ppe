@@ -320,6 +320,7 @@ unsigned int ppe_vsi_tbl_entries(struct ppe_device *ppe_dev);
 int ppe_counter_enable_set(struct ppe_device *ppe_dev, int port);
 int ppe_rss_hash_config_set(struct ppe_device *ppe_dev, int mode,
 			    struct ppe_rss_hash_cfg hash_cfg);
+int ppe_rx_hash_spread(struct ppe_device *ppe_dev, unsigned int num_queues);
 int ppe_ring_queue_map_set(struct ppe_device *ppe_dev,
 			   int ring_id,
 			   const u32 *queue_map);

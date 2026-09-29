@@ -17,6 +17,7 @@
 #include <linux/reset.h>
 
 #include "edma.h"
+#include "edmav1/edma.h"
 #include "edmav2/edma.h"
 #include "ppe.h"
 
@@ -220,6 +221,9 @@ int edma_open(struct edma *edma)
 		edma_reset_tx_queues(edma);
 
 		switch (edma->gen) {
+		case EDMA_V1:
+			edmav1_open(edma);
+			break;
 		case EDMA_V2:
 			edmav2_open(edma);
 			break;
@@ -243,6 +247,9 @@ void edma_close(struct edma *edma)
 
 	if (!--edma->open_count) {
 		switch (edma->gen) {
+		case EDMA_V1:
+			edmav1_close(edma);
+			break;
 		case EDMA_V2:
 			edmav2_close(edma);
 			break;
@@ -259,6 +266,9 @@ void edma_pause(struct edma *edma)
 	mutex_lock(&edma->lock);
 	if (edma->open_count) {
 		switch (edma->gen) {
+		case EDMA_V1:
+			edmav1_close(edma);
+			break;
 		case EDMA_V2:
 			edmav2_close(edma);
 			break;
@@ -274,6 +284,9 @@ void edma_resume(struct edma *edma)
 	mutex_lock(&edma->lock);
 	if (edma->open_count) {
 		switch (edma->gen) {
+		case EDMA_V1:
+			edmav1_open(edma);
+			break;
 		case EDMA_V2:
 			edmav2_open(edma);
 			break;
@@ -292,6 +305,8 @@ netdev_tx_t edma_xmit(struct edma *edma, struct sk_buff *skb, u8 dst_port,
 		goto drop;
 
 	switch (edma->gen) {
+	case EDMA_V1:
+		return edmav1_xmit(edma, skb, dst_port, txq);
 	case EDMA_V2:
 		return edmav2_xmit(edma, skb, dst_port, txq);
 	default:
@@ -308,6 +323,8 @@ drop:
 int edma_set_max_frame(struct edma *edma, unsigned int frame_size)
 {
 	switch (edma->gen) {
+	case EDMA_V1:
+		return edmav1_set_max_frame(edma, frame_size);
 	case EDMA_V2:
 		/* Frames that do not fit a buffer use several descriptors. */
 		return 0;
@@ -320,6 +337,8 @@ const struct edma_stat_desc *edma_stats_layout(struct edma *edma,
 					       unsigned int *count)
 {
 	switch (edma->gen) {
+	case EDMA_V1:
+		return edmav1_stats_layout(edma, count);
 	case EDMA_V2:
 		return edmav2_stats_layout(edma, count);
 	default:
@@ -331,6 +350,9 @@ const struct edma_stat_desc *edma_stats_layout(struct edma *edma,
 void edma_stats_read(struct edma *edma, u64 *buf)
 {
 	switch (edma->gen) {
+	case EDMA_V1:
+		edmav1_stats_read(edma, buf);
+		break;
 	case EDMA_V2:
 		edmav2_stats_read(edma, buf);
 		break;
@@ -342,6 +364,8 @@ void edma_stats_read(struct edma *edma, u64 *buf)
 int edma_ringparam_get(struct edma *edma, struct ethtool_ringparam *rp)
 {
 	switch (edma->gen) {
+	case EDMA_V1:
+		return edmav1_ringparam_get(edma, rp);
 	case EDMA_V2:
 		return edmav2_ringparam_get(edma, rp);
 	default:
@@ -357,6 +381,8 @@ int edma_ringparam_set(struct edma *edma, struct ethtool_ringparam *rp)
 int edma_regs_len(struct edma *edma)
 {
 	switch (edma->gen) {
+	case EDMA_V1:
+		return edmav1_regs_len(edma);
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -365,6 +391,9 @@ int edma_regs_len(struct edma *edma)
 void edma_regs_dump(struct edma *edma, void *buf)
 {
 	switch (edma->gen) {
+	case EDMA_V1:
+		edmav1_regs_dump(edma, buf);
+		break;
 	default:
 		break;
 	}
@@ -475,6 +504,9 @@ int edma_init(struct ppe_device *ppe_dev, const struct edma_config *cfg,
 	}
 
 	switch (edma->gen) {
+	case EDMA_V1:
+		ret = edmav1_init(edma);
+		break;
 	case EDMA_V2:
 		ret = edmav2_init(edma);
 		break;
@@ -503,6 +535,9 @@ err_node:
 void edma_fini(struct edma *edma)
 {
 	switch (edma->gen) {
+	case EDMA_V1:
+		edmav1_fini(edma);
+		break;
 	case EDMA_V2:
 		edmav2_fini(edma);
 		break;

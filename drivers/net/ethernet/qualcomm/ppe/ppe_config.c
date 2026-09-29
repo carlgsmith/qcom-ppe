@@ -1834,6 +1834,31 @@ int ppe_rss_hash_config_set(struct ppe_device *ppe_dev, int mode,
 }
 
 /**
+ * ppe_rx_hash_spread - Spread the frames for the CPU port over queues
+ * @ppe_dev: PPE device
+ * @num_queues: Number of queues to spread over
+ *
+ * Add a queue offset from 0 to @num_queues - 1 to the base queue of the CPU
+ * port, chosen by the RSS hash of the frame. The Ethernet DMA maps these
+ * queues to its receive rings.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_rx_hash_spread(struct ppe_device *ppe_dev, unsigned int num_queues)
+{
+	int hash, ret;
+
+	for (hash = 0; hash < PPE_QUEUE_HASH_NUM; hash++) {
+		ret = ppe_queue_ucast_offset_hash_set(ppe_dev, 0, hash,
+						      hash % num_queues);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+/**
  * ppe_ring_queue_map_set - Set the PPE queue to Ethernet DMA ring mapping
  * @ppe_dev: PPE device
  * @ring_id: Ethernet DMA ring ID
