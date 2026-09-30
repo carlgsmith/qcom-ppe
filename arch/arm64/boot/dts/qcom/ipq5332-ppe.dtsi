@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-3-Clause
+/*
+ * IPQ5332 PPE (packet process engine) and its Ethernet DMA.
+ */
+
+#include <dt-bindings/interconnect/qcom,ipq5332.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/qcom,ipq5332-nsscc.h>
+
+&{/soc@0} {
+	/* The per-port clocks and resets are in the port nodes. A board
+	 * enables the ports that it uses and gives each a PHY, a PCS and an
+	 * interface mode.
+	 */
+	ppe: ethernet-switch@3a000000 {
+		compatible = "qcom,ipq5332-ppe";
+		reg = <0x3a000000 0xbef800>;
+		clocks = <&nsscc NSS_CC_PPE_SWITCH_CLK>,
+			 <&nsscc NSS_CC_PPE_SWITCH_CFG_CLK>,
+			 <&nsscc NSS_CC_PPE_SWITCH_IPE_CLK>,
+			 <&nsscc NSS_CC_PPE_SWITCH_BTQ_CLK>;
+		clock-names = "ppe", "apb", "ipe", "btq";
+		resets = <&nsscc NSS_CC_PPE_BCR>;
+		interconnects = <&nsscc MASTER_NSSNOC_PPE &nsscc SLAVE_NSSNOC_PPE>,
+				<&nsscc MASTER_NSSNOC_PPE_CFG &nsscc SLAVE_NSSNOC_PPE_CFG>,
+				<&nsscc MASTER_NSSNOC_CE_AXI &nsscc SLAVE_NSSNOC_CE_AXI>,
+				<&nsscc MASTER_NSSNOC_CE_APB &nsscc SLAVE_NSSNOC_CE_APB>,
+				<&nsscc MASTER_NSSNOC_NSS_CSR &nsscc SLAVE_NSSNOC_NSS_CSR>;
+		interconnect-names = "ppe",
+				     "ppe_cfg",
+				     "nssnoc_ce_axi",
+				     "nssnoc_ce_apb",
+				     "nssnoc_nss_csr";
+		status = "disabled";
+
+		ethernet-dma {
+			clocks = <&nsscc NSS_CC_PPE_EDMA_CLK>,
+				 <&nsscc NSS_CC_PPE_EDMA_CFG_CLK>;
+			clock-names = "sys", "apb";
+			resets = <&nsscc NSS_CC_PPE_EDMA_CLK_ARES>,
+				 <&nsscc NSS_CC_PPE_EDMA_CFG_CLK_ARES>;
+			reset-names = "edma", "edma_cfg";
+			interrupts = <GIC_SPI 163 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 164 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 165 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 166 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 167 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 169 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 170 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 171 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 172 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 173 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 139 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 142 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 191 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "txcmpl_4",
+					  "txcmpl_5",
+					  "txcmpl_6",
+					  "txcmpl_7",
+					  "txcmpl_8",
+					  "txcmpl_9",
+					  "txcmpl_10",
+					  "txcmpl_11",
+					  "txcmpl_12",
+					  "txcmpl_13",
+					  "txcmpl_14",
+					  "txcmpl_15",
+					  "rxdesc_12",
+					  "rxdesc_13",
+					  "rxdesc_14",
+					  "rxdesc_15",
+					  "misc";
+		};
+
+		ethernet-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ppe_port1: ethernet-port@1 {
+				reg = <1>;
+				clocks = <&nsscc NSS_CC_PORT1_MAC_CLK>,
+					 <&nsscc NSS_CC_PORT1_RX_CLK>,
+					 <&nsscc NSS_CC_PORT1_TX_CLK>;
+				clock-names = "mac", "rx", "tx";
+				resets = <&nsscc NSS_CC_PORT1_MAC_CLK_ARES>,
+					 <&nsscc NSS_CC_PORT1_RX_CLK_ARES>,
+					 <&nsscc NSS_CC_PORT1_TX_CLK_ARES>;
+				reset-names = "mac", "rx", "tx";
+				status = "disabled";
+			};
+
+			ppe_port2: ethernet-port@2 {
+				reg = <2>;
+				clocks = <&nsscc NSS_CC_PORT2_MAC_CLK>,
+					 <&nsscc NSS_CC_PORT2_RX_CLK>,
+					 <&nsscc NSS_CC_PORT2_TX_CLK>;
+				clock-names = "mac", "rx", "tx";
+				resets = <&nsscc NSS_CC_PORT2_MAC_CLK_ARES>,
+					 <&nsscc NSS_CC_PORT2_RX_CLK_ARES>,
+					 <&nsscc NSS_CC_PORT2_TX_CLK_ARES>;
+				reset-names = "mac", "rx", "tx";
+				status = "disabled";
+			};
+		};
+	};
+};
