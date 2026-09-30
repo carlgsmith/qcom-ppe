@@ -96,6 +96,7 @@ description: |
 properties:
   compatible:
     enum:
+      - qcom,ipq5332-ppe
       - qcom,ipq5424-ppe
       - qcom,ipq6018-ppe
       - qcom,ipq8074-ppe
@@ -328,7 +329,9 @@ allOf:
       properties:
         compatible:
           contains:
-            const: qcom,ipq5424-ppe
+            enum:
+              - qcom,ipq5332-ppe
+              - qcom,ipq5424-ppe
     then:
       properties:
         clocks:
