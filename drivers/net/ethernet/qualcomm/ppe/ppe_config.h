@@ -322,5 +322,9 @@ int ppe_ring_queue_map_set(struct ppe_device *ppe_dev,
 			   int ring_id,
 			   const u32 *queue_map);
 
+/* The port that the EDMA is connected to. */
+#define PPE_CPU_PORT			0
+
 int ppe_port_txmac_set(struct ppe_device *ppe_dev, int port, bool enable);
+int ppe_port_mtu_set(struct ppe_device *ppe_dev, int port, u32 frame_size);
 #endif

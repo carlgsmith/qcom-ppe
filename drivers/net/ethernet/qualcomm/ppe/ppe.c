@@ -18,6 +18,7 @@
 #include "ppe_config.h"
 #include "ppe_debugfs.h"
 #include "ppe_mac.h"
+#include "ppe_port.h"
 
 #define PPE_PORT_MAX		8
 #define PPE_CLK_RATE		353000000
@@ -209,6 +210,31 @@ static bool ppe_has_child(struct device *dev, const char *name)
 	return np;
 }
 
+/* How the ports reach the network stack. Ports that are available are
+ * netdevs, and without any port node the PPE only forwards in hardware.
+ */
+enum ppe_port_model {
+	PPE_PORT_MODEL_NONE,
+	PPE_PORT_MODEL_DIRECT,
+};
+
+static enum ppe_port_model ppe_port_model_get(struct device *dev)
+{
+	enum ppe_port_model model = PPE_PORT_MODEL_NONE;
+	struct device_node *ports_np;
+
+	ports_np = of_get_child_by_name(dev->of_node, "ethernet-ports");
+	if (!ports_np)
+		return model;
+
+	for_each_available_child_of_node_scoped(ports_np, port_np)
+		model = PPE_PORT_MODEL_DIRECT;
+
+	of_node_put(ports_np);
+
+	return model;
+}
+
 static int qcom_ppe_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -256,13 +282,23 @@ static int qcom_ppe_probe(struct platform_device *pdev)
 	}
 
 	if (data->edma_gen != EDMA_NONE && ppe_has_child(dev, "ethernet-dma")) {
+		enum ppe_port_model model = ppe_port_model_get(dev);
 		struct edma_config edma_cfg = {
-			.tag_mode = data->edma_tag_mode,
+			.tag_mode = EDMA_TAG_NONE,
 		};
 
 		ret = edma_init(ppe_dev, &edma_cfg, &ppe_dev->edma);
 		if (ret)
 			return dev_err_probe(dev, ret, "EDMA init failed\n");
+
+		if (model == PPE_PORT_MODEL_DIRECT) {
+			ret = ppe_port_init(ppe_dev);
+			if (ret) {
+				edma_fini(ppe_dev->edma);
+				return dev_err_probe(dev, ret,
+						     "port model init failed\n");
+			}
+		}
 	}
 
 	ppe_debugfs_setup(ppe_dev);
@@ -277,6 +313,7 @@ static void qcom_ppe_remove(struct platform_device *pdev)
 
 	ppe_dev = platform_get_drvdata(pdev);
 	ppe_debugfs_teardown(ppe_dev);
+	ppe_port_deinit(ppe_dev);
 	if (ppe_dev->edma)
 		edma_fini(ppe_dev->edma);
 }

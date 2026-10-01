@@ -2238,3 +2238,45 @@ int ppe_port_txmac_set(struct ppe_device *ppe_dev, int port, bool enable)
 				  PPE_PORT_BRIDGE_TXMAC_EN,
 				  enable ? PPE_PORT_BRIDGE_TXMAC_EN : 0);
 }
+
+/**
+ * ppe_port_mtu_set - Set the frame size limit of a port.
+ * @ppe_dev: PPE device.
+ * @port: PPE port.
+ * @frame_size: Largest frame that the port receives and transmits.
+ *
+ * A frame that is too large on receive goes to the CPU. On transmit it is
+ * dropped. The first word of the entry has the sizes and the entry takes
+ * effect when its second word is written, so the second word is written
+ * back unchanged.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_port_mtu_set(struct ppe_device *ppe_dev, int port, u32 frame_size)
+{
+	u32 reg = PPE_MRU_MTU_CTRL_TBL_ADDR + port * PPE_MRU_MTU_CTRL_TBL_INC;
+	u32 val[2];
+	int ret;
+
+	ret = regmap_read(ppe_dev->regmap, reg + sizeof(u32), &val[1]);
+	if (ret)
+		return ret;
+
+	val[0] = FIELD_PREP(PPE_MRU_MTU_CTRL_W0_MRU, frame_size) |
+		 FIELD_PREP(PPE_MRU_MTU_CTRL_W0_MRU_CMD,
+			    PPE_ACTION_REDIRECT_TO_CPU) |
+		 FIELD_PREP(PPE_MRU_MTU_CTRL_W0_MTU, frame_size) |
+		 FIELD_PREP(PPE_MRU_MTU_CTRL_W0_MTU_CMD, PPE_ACTION_DROP);
+	ret = regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
+	if (ret)
+		return ret;
+
+	return regmap_update_bits(ppe_dev->regmap,
+				  PPE_MC_MTU_CTRL_TBL_ADDR +
+				  port * PPE_MC_MTU_CTRL_TBL_INC,
+				  PPE_MC_MTU_CTRL_TBL_MTU |
+				  PPE_MC_MTU_CTRL_TBL_MTU_CMD,
+				  FIELD_PREP(PPE_MC_MTU_CTRL_TBL_MTU, frame_size) |
+				  FIELD_PREP(PPE_MC_MTU_CTRL_TBL_MTU_CMD,
+					     PPE_ACTION_DROP));
+}

@@ -53,6 +53,7 @@ struct ppe_of_data {
  * @edma: EDMA instance, NULL if the SoC has no EDMA support.
  * @clk_rate: PPE clock rate.
  * @num_ports: Number of PPE ports.
+ * @port_netdev: Netdev of each port of the direct port model.
  * @macs: MAC of each port, NULL for a port without a MAC.
  * @debugfs_root: Debugfs root entry.
  * @num_icc_paths: Number of interconnect paths.
@@ -69,6 +70,7 @@ struct ppe_device {
 	struct edma *edma;
 	unsigned long clk_rate;
 	unsigned int num_ports;
+	struct net_device *port_netdev[PPE_MAC_MAX_PORTS];
 	struct ppe_mac *macs[PPE_MAC_MAX_PORTS];
 	struct dentry *debugfs_root;
 	unsigned int num_icc_paths;
