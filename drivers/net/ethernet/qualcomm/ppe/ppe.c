@@ -115,6 +115,9 @@ static const struct ppe_of_data ppe_ipq9574_data = {
 	.icc_data = ipq9574_ppe_icc_data,
 	.num_icc_paths = ARRAY_SIZE(ipq9574_ppe_icc_data),
 	.config = &ppe_ipq9574_config,
+	.edma_gen = EDMA_V2,
+	.edma_tag_mode = EDMA_TAG_NONE,
+	.edma_data = &edmav2_ipq9574_data,
 };
 
 static int ppe_clock_init_and_reset(struct ppe_device *ppe_dev)
@@ -180,6 +183,18 @@ static int ppe_clock_init_and_reset(struct ppe_device *ppe_dev)
 	return reset_control_deassert(rstc);
 }
 
+/* A device tree that has no EDMA node is a PPE that only forwards in
+ * hardware.
+ */
+static bool ppe_has_child(struct device *dev, const char *name)
+{
+	struct device_node *np = of_get_child_by_name(dev->of_node, name);
+
+	of_node_put(np);
+
+	return np;
+}
+
 static int qcom_ppe_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -220,7 +235,7 @@ static int qcom_ppe_probe(struct platform_device *pdev)
 	if (ret)
 		return dev_err_probe(dev, ret, "PPE HW config failed\n");
 
-	if (data->edma_gen != EDMA_NONE) {
+	if (data->edma_gen != EDMA_NONE && ppe_has_child(dev, "ethernet-dma")) {
 		struct edma_config edma_cfg = {
 			.tag_mode = data->edma_tag_mode,
 		};

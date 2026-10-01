@@ -933,6 +933,51 @@ static int ppe_scheduler_l0_queue_map_set(struct ppe_device *ppe_dev,
 				  val);
 }
 
+/* Get the first level scheduler configuration. */
+static int ppe_scheduler_l0_queue_map_get(struct ppe_device *ppe_dev,
+					  int node_id, int *port,
+					  struct ppe_scheduler_cfg *scheduler_cfg)
+{
+	u32 val, reg;
+	int ret;
+
+	reg = PPE_L0_FLOW_MAP_TBL_ADDR + node_id * PPE_L0_FLOW_MAP_TBL_INC;
+	ret = regmap_read(ppe_dev->regmap, reg, &val);
+	if (ret)
+		return ret;
+
+	scheduler_cfg->flow_id = FIELD_GET(PPE_L0_FLOW_MAP_TBL_FLOW_ID, val);
+	scheduler_cfg->pri = FIELD_GET(PPE_L0_FLOW_MAP_TBL_C_PRI, val);
+	scheduler_cfg->drr_node_wt = FIELD_GET(PPE_L0_FLOW_MAP_TBL_C_NODE_WT, val);
+
+	reg = PPE_L0_C_FLOW_CFG_TBL_ADDR +
+	      (scheduler_cfg->flow_id * PPE_QUEUE_SCH_PRI_NUM + scheduler_cfg->pri) *
+	      PPE_L0_C_FLOW_CFG_TBL_INC;
+
+	ret = regmap_read(ppe_dev->regmap, reg, &val);
+	if (ret)
+		return ret;
+
+	scheduler_cfg->drr_node_id = FIELD_GET(PPE_L0_C_FLOW_CFG_TBL_NODE_ID, val);
+	scheduler_cfg->unit_is_packet = FIELD_GET(PPE_L0_C_FLOW_CFG_TBL_NODE_CREDIT_UNIT, val);
+
+	reg = PPE_L0_FLOW_PORT_MAP_TBL_ADDR + node_id * PPE_L0_FLOW_PORT_MAP_TBL_INC;
+	ret = regmap_read(ppe_dev->regmap, reg, &val);
+	if (ret)
+		return ret;
+
+	*port = FIELD_GET(PPE_L0_FLOW_PORT_MAP_TBL_PORT_NUM, val);
+
+	reg = PPE_L0_COMP_CFG_TBL_ADDR + node_id * PPE_L0_COMP_CFG_TBL_INC;
+	ret = regmap_read(ppe_dev->regmap, reg, &val);
+	if (ret)
+		return ret;
+
+	scheduler_cfg->frame_mode = FIELD_GET(PPE_L0_COMP_CFG_TBL_NODE_METER_LEN, val);
+
+	return 0;
+}
+
 /* Set the PPE flow level scheduler configuration. */
 static int ppe_scheduler_l1_queue_map_set(struct ppe_device *ppe_dev,
 					  int node_id, int port,
@@ -985,6 +1030,50 @@ static int ppe_scheduler_l1_queue_map_set(struct ppe_device *ppe_dev,
 	return regmap_update_bits(ppe_dev->regmap, reg, PPE_L1_COMP_CFG_TBL_NODE_METER_LEN, val);
 }
 
+/* Get the second level scheduler configuration. */
+static int ppe_scheduler_l1_queue_map_get(struct ppe_device *ppe_dev,
+					  int node_id, int *port,
+					  struct ppe_scheduler_cfg *scheduler_cfg)
+{
+	u32 val, reg;
+	int ret;
+
+	reg = PPE_L1_FLOW_MAP_TBL_ADDR + node_id * PPE_L1_FLOW_MAP_TBL_INC;
+	ret = regmap_read(ppe_dev->regmap, reg, &val);
+	if (ret)
+		return ret;
+
+	scheduler_cfg->flow_id = FIELD_GET(PPE_L1_FLOW_MAP_TBL_FLOW_ID, val);
+	scheduler_cfg->pri = FIELD_GET(PPE_L1_FLOW_MAP_TBL_C_PRI, val);
+	scheduler_cfg->drr_node_wt = FIELD_GET(PPE_L1_FLOW_MAP_TBL_C_NODE_WT, val);
+
+	reg = PPE_L1_C_FLOW_CFG_TBL_ADDR +
+	      (scheduler_cfg->flow_id * PPE_QUEUE_SCH_PRI_NUM + scheduler_cfg->pri) *
+	      PPE_L1_C_FLOW_CFG_TBL_INC;
+	ret = regmap_read(ppe_dev->regmap, reg, &val);
+	if (ret)
+		return ret;
+
+	scheduler_cfg->drr_node_id = FIELD_GET(PPE_L1_C_FLOW_CFG_TBL_NODE_ID, val);
+	scheduler_cfg->unit_is_packet = FIELD_GET(PPE_L1_C_FLOW_CFG_TBL_NODE_CREDIT_UNIT, val);
+
+	reg = PPE_L1_FLOW_PORT_MAP_TBL_ADDR + node_id * PPE_L1_FLOW_PORT_MAP_TBL_INC;
+	ret = regmap_read(ppe_dev->regmap, reg, &val);
+	if (ret)
+		return ret;
+
+	*port = FIELD_GET(PPE_L1_FLOW_PORT_MAP_TBL_PORT_NUM, val);
+
+	reg = PPE_L1_COMP_CFG_TBL_ADDR + node_id * PPE_L1_COMP_CFG_TBL_INC;
+	ret = regmap_read(ppe_dev->regmap, reg, &val);
+	if (ret)
+		return ret;
+
+	scheduler_cfg->frame_mode = FIELD_GET(PPE_L1_COMP_CFG_TBL_NODE_METER_LEN, val);
+
+	return 0;
+}
+
 /**
  * ppe_queue_scheduler_set - Configure scheduler for PPE hardware queue
  * @ppe_dev: PPE device
@@ -1008,6 +1097,56 @@ int ppe_queue_scheduler_set(struct ppe_device *ppe_dev,
 
 	return ppe_scheduler_l0_queue_map_set(ppe_dev, node_id,
 					      port, scheduler_cfg);
+}
+
+/**
+ * ppe_queue_scheduler_get - get QoS scheduler of PPE hardware queue
+ * @ppe_dev: PPE device
+ * @node_id: PPE node ID
+ * @flow_level: Flow level scheduler or queue level scheduler
+ * @port: PPE port ID to get scheduler config
+ * @scheduler_cfg: QoS scheduler configuration
+ *
+ * The hardware QoS function is supported by PPE, the current scheduler
+ * configuration can be acquired based on the queue ID of PPE port.
+ *
+ * Return 0 on success, negative error code on failure.
+ */
+int ppe_queue_scheduler_get(struct ppe_device *ppe_dev,
+			    int node_id, bool flow_level, int *port,
+			    struct ppe_scheduler_cfg *scheduler_cfg)
+{
+	if (flow_level)
+		return ppe_scheduler_l1_queue_map_get(ppe_dev, node_id,
+						      port, scheduler_cfg);
+
+	return ppe_scheduler_l0_queue_map_get(ppe_dev, node_id,
+					      port, scheduler_cfg);
+}
+
+/**
+ * ppe_queue_priority_set - set scheduler priority of PPE hardware queue
+ * @ppe_dev: PPE device
+ * @node_id: PPE hardware queue ID
+ * @priority: Qos scheduler priority
+ *
+ * Configure scheduler priority of PPE hardware queue. The queue belongs to
+ * level 0 in the packet pipeline.
+ *
+ * Return 0 on success, negative error code on failure.
+ */
+int ppe_queue_priority_set(struct ppe_device *ppe_dev,
+			   int node_id, int priority)
+{
+	struct ppe_scheduler_cfg sch_cfg;
+	int ret, port, level = 0;
+
+	ret = ppe_queue_scheduler_get(ppe_dev, node_id, level, &port, &sch_cfg);
+	if (ret)
+		return ret;
+
+	sch_cfg.pri = priority;
+	return ppe_queue_scheduler_set(ppe_dev, node_id, level, port, sch_cfg);
 }
 
 /**

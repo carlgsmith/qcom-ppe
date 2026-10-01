@@ -293,6 +293,11 @@ int ppe_hw_config(struct ppe_device *ppe_dev);
 int ppe_queue_scheduler_set(struct ppe_device *ppe_dev,
 			    int node_id, bool flow_level, int port,
 			    struct ppe_scheduler_cfg scheduler_cfg);
+int ppe_queue_scheduler_get(struct ppe_device *ppe_dev,
+			    int node_id, bool flow_level, int *port,
+			    struct ppe_scheduler_cfg *scheduler_cfg);
+int ppe_queue_priority_set(struct ppe_device *ppe_dev,
+			   int queue_id, int priority);
 int ppe_queue_ucast_base_set(struct ppe_device *ppe_dev,
 			     struct ppe_queue_ucast_dest queue_dst,
 			     int queue_base,

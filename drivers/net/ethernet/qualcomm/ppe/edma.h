@@ -145,6 +145,9 @@ struct edma {
 	void *priv;
 };
 
+struct edmav2_hw_info;
+extern const struct edmav2_hw_info edmav2_ipq9574_data;
+
 /* Lifecycle */
 int edma_init(struct ppe_device *ppe_dev, const struct edma_config *cfg,
 	      struct edma **edmap);
@@ -177,6 +180,13 @@ netdev_tx_t edma_xmit(struct edma *edma, struct sk_buff *skb, u8 dst_port,
 int edma_set_max_frame(struct edma *edma, unsigned int frame_size);
 void edma_pause(struct edma *edma);
 void edma_resume(struct edma *edma);
+
+/* The netdev that receives the frames of a port. */
+static inline struct net_device *edma_rx_netdev(struct edma *edma, u8 src_port)
+{
+	/* The conduit is registered as port 0. */
+	return READ_ONCE(edma->netdev[edma->tag_mode == EDMA_TAG_DSA ? 0 : src_port]);
+}
 
 /* Information */
 static inline const struct edma_caps *edma_caps_get(struct edma *edma)

@@ -17,6 +17,7 @@
 #include <linux/reset.h>
 
 #include "edma.h"
+#include "edmav2/edma.h"
 #include "ppe.h"
 
 #define EDMA_DSA_HLEN		4
@@ -114,8 +115,7 @@ void edma_rx_deliver(struct edma *edma, struct napi_struct *napi,
 		return;
 	}
 
-	/* The conduit is registered as port 0. */
-	netdev = edma->netdev[edma->tag_mode == EDMA_TAG_DSA ? 0 : src_port];
+	netdev = edma_rx_netdev(edma, src_port);
 	if (unlikely(!netdev)) {
 		dev_kfree_skb_any(skb);
 		return;
@@ -220,6 +220,9 @@ int edma_open(struct edma *edma)
 		edma_reset_tx_queues(edma);
 
 		switch (edma->gen) {
+		case EDMA_V2:
+			edmav2_open(edma);
+			break;
 		default:
 			ret = -ENODEV;
 			break;
@@ -240,6 +243,9 @@ void edma_close(struct edma *edma)
 
 	if (!--edma->open_count) {
 		switch (edma->gen) {
+		case EDMA_V2:
+			edmav2_close(edma);
+			break;
 		default:
 			break;
 		}
@@ -253,6 +259,9 @@ void edma_pause(struct edma *edma)
 	mutex_lock(&edma->lock);
 	if (edma->open_count) {
 		switch (edma->gen) {
+		case EDMA_V2:
+			edmav2_close(edma);
+			break;
 		default:
 			break;
 		}
@@ -265,6 +274,9 @@ void edma_resume(struct edma *edma)
 	mutex_lock(&edma->lock);
 	if (edma->open_count) {
 		switch (edma->gen) {
+		case EDMA_V2:
+			edmav2_open(edma);
+			break;
 		default:
 			break;
 		}
@@ -280,6 +292,8 @@ netdev_tx_t edma_xmit(struct edma *edma, struct sk_buff *skb, u8 dst_port,
 		goto drop;
 
 	switch (edma->gen) {
+	case EDMA_V2:
+		return edmav2_xmit(edma, skb, dst_port, txq);
 	default:
 		break;
 	}
@@ -294,6 +308,9 @@ drop:
 int edma_set_max_frame(struct edma *edma, unsigned int frame_size)
 {
 	switch (edma->gen) {
+	case EDMA_V2:
+		/* Frames that do not fit a buffer use several descriptors. */
+		return 0;
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -303,6 +320,8 @@ const struct edma_stat_desc *edma_stats_layout(struct edma *edma,
 					       unsigned int *count)
 {
 	switch (edma->gen) {
+	case EDMA_V2:
+		return edmav2_stats_layout(edma, count);
 	default:
 		*count = 0;
 		return NULL;
@@ -311,11 +330,23 @@ const struct edma_stat_desc *edma_stats_layout(struct edma *edma,
 
 void edma_stats_read(struct edma *edma, u64 *buf)
 {
+	switch (edma->gen) {
+	case EDMA_V2:
+		edmav2_stats_read(edma, buf);
+		break;
+	default:
+		break;
+	}
 }
 
 int edma_ringparam_get(struct edma *edma, struct ethtool_ringparam *rp)
 {
-	return -EOPNOTSUPP;
+	switch (edma->gen) {
+	case EDMA_V2:
+		return edmav2_ringparam_get(edma, rp);
+	default:
+		return -EOPNOTSUPP;
+	}
 }
 
 int edma_ringparam_set(struct edma *edma, struct ethtool_ringparam *rp)
@@ -325,11 +356,18 @@ int edma_ringparam_set(struct edma *edma, struct ethtool_ringparam *rp)
 
 int edma_regs_len(struct edma *edma)
 {
-	return -EOPNOTSUPP;
+	switch (edma->gen) {
+	default:
+		return -EOPNOTSUPP;
+	}
 }
 
 void edma_regs_dump(struct edma *edma, void *buf)
 {
+	switch (edma->gen) {
+	default:
+		break;
+	}
 }
 
 /* Clocks and reset of the ethernet-dma node. The node has no driver of its
@@ -361,6 +399,15 @@ static int edma_get_resources(struct edma *edma)
 			edma_clks_put(c, i);
 			return ret;
 		}
+
+		/* The clocks of the EDMA v2 run at the rate of the PPE. */
+		if (edma->gen == EDMA_V2) {
+			ret = clk_set_rate(c->clks[i].clk, edma->ppe_dev->clk_rate);
+			if (ret) {
+				edma_clks_put(c, i + 1);
+				return ret;
+			}
+		}
 	}
 
 	ret = clk_bulk_prepare_enable(c->num, c->clks);
@@ -372,6 +419,10 @@ static int edma_get_resources(struct edma *edma)
 	ret = devm_add_action_or_reset(dev, edma_clks_release, c);
 	if (ret)
 		return ret;
+
+	/* The EDMA v2 resets the resets that are in the node itself. */
+	if (edma->gen == EDMA_V2)
+		return 0;
 
 	rst = of_reset_control_get_exclusive(edma->np, NULL);
 	if (IS_ERR(rst))
@@ -424,6 +475,9 @@ int edma_init(struct ppe_device *ppe_dev, const struct edma_config *cfg,
 	}
 
 	switch (edma->gen) {
+	case EDMA_V2:
+		ret = edmav2_init(edma);
+		break;
 	default:
 		ret = -ENODEV;
 		break;
@@ -449,6 +503,9 @@ err_node:
 void edma_fini(struct edma *edma)
 {
 	switch (edma->gen) {
+	case EDMA_V2:
+		edmav2_fini(edma);
+		break;
 	default:
 		break;
 	}
