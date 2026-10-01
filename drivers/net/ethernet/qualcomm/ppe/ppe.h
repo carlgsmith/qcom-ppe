@@ -51,6 +51,8 @@ enum ppe_type {
  * @port_eg_vlan_tbl_addr: Base address of the per-port egress VLAN table.
  * @l3_vp_port_tbl_addr: Base address of the L3 VP port table.
  * @l3_vp_port_tbl_words: Number of words in an entry of the L3 VP port table.
+ * @eg_vsi_tag_addr: Base address of the egress VSI tag table.
+ * @eg_vsi_tag_inc: Distance between the entries of the egress VSI tag table.
  * @eg_vsi_counter_tbl_addr: Base address of the egress VSI counter table.
  * @port_tx_counter_tbl_addr: Base address of the port TX counter table.
  * @vport_tx_counter_tbl_addr: Base address of the virtual port TX counter table.
@@ -64,6 +66,8 @@ struct ppe_regs {
 	u32 port_eg_vlan_tbl_addr;
 	u32 l3_vp_port_tbl_addr;
 	unsigned int l3_vp_port_tbl_words;
+	u32 eg_vsi_tag_addr;
+	unsigned int eg_vsi_tag_inc;
 	u32 eg_vsi_counter_tbl_addr;
 	u32 port_tx_counter_tbl_addr;
 	u32 vport_tx_counter_tbl_addr;

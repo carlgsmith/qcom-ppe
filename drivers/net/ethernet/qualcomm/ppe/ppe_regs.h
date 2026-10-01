@@ -119,6 +119,12 @@
 #define PPE_SERVICE_SET_RX_CNT_EN(tbl_cfg, value)	\
 	FIELD_MODIFY(PPE_SERVICE_W1_RX_CNT_EN, (tbl_cfg) + 0x1, value)
 
+/* Egress VSI tag table. */
+#define PPE_HPPE_EG_VSI_TAG_ADDR		0x20000
+#define PPE_APPE_EG_VSI_TAG_ADDR		0x20800
+#define PPE_HPPE_EG_VSI_TAG_INC			4
+#define PPE_APPE_EG_VSI_TAG_INC			0x10
+
 /* PPE port egress VLAN configurations. */
 #define PPE_HPPE_PORT_EG_VLAN_TBL_ADDR		0x20420
 #define PPE_APPE_PORT_EG_VLAN_TBL_ADDR		0x20020
@@ -135,6 +141,7 @@
 /* PPE queue counters enable/disable control. */
 #define PPE_HPPE_EG_BRIDGE_CONFIG_ADDR		0x26000
 #define PPE_APPE_EG_BRIDGE_CONFIG_ADDR		0x20044
+#define PPE_EG_L2_EDIT_EN			BIT(1)
 #define PPE_EG_BRIDGE_CONFIG_QUEUE_CNT_EN	BIT(2)
 
 /* PPE service code configuration on the egress direction. */
@@ -512,6 +519,23 @@
 #define PPE_XGMAC_RXLPI_TRAN_ADDR			0x9A8
 #define PPE_XGMAC_RXDISCARD_GB_ADDR			0x9AC
 #define PPE_XGMAC_RXDISCARDBYTE_GB_ADDR		0x9B4
+
+/* Spanning tree state of a port. */
+#define PPE_CST_STATE_ADDR			0x60100
+#define PPE_CST_STATE_INC			4
+#define PPE_STP_STATE_MASK			GENMASK(1, 0)
+#define PPE_STP_DISABLED			0
+#define PPE_STP_BLOCKING			1
+#define PPE_STP_LEARNING			2
+#define PPE_STP_FORWARDING			3
+
+/* The ports that a port can forward to. */
+#define PPE_PORT_BRIDGE_CTRL_PORT_ISOL		GENMASK(15, 8)
+
+/* Egress VLAN tag mode of each VSI, and the tag modes of a port. */
+#define PPE_EG_VSI_TAG_UNMODIFIED		0xaaaa
+#define PPE_EG_UNMODIFIED			2
+#define PPE_EG_UNTOUCHED			3
 
 /* Port RX and RX drop counters. */
 #define PPE_PORT_RX_CNT_TBL_ADDR		0x150000

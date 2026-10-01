@@ -538,14 +538,16 @@ static bool ppe_port_has_netdev(struct ppe_device *ppe_dev,
  * ppe_port_init - Create a netdev for each port.
  * @ppe_dev: PPE device.
  *
- * A port has a netdev when its node is available and it has a MAC.
+ * A port has a netdev when its node is available and it has a MAC. A SoC with
+ * the legacy switch fabric has the fabric set up first, so that the frames
+ * of the ports reach the CPU port.
  *
  * Return: 0 on success, negative error code on failure.
  */
 int ppe_port_init(struct ppe_device *ppe_dev)
 {
 	struct device_node *ports_np;
-	u32 port_id;
+	u32 port_id, user_ports = 0;
 	int ret = 0;
 
 	if (!ppe_dev->edma || !ppe_dev->data->mac)
@@ -554,6 +556,16 @@ int ppe_port_init(struct ppe_device *ppe_dev)
 	ports_np = of_get_child_by_name(ppe_dev->dev->of_node, "ethernet-ports");
 	if (!ports_np)
 		return -ENODEV;
+
+	for_each_available_child_of_node_scoped(ports_np, port_np)
+		if (ppe_port_has_netdev(ppe_dev, port_np, &port_id))
+			user_ports |= BIT(port_id);
+
+	ret = ppe_direct_fabric_init(ppe_dev, user_ports);
+	if (ret) {
+		of_node_put(ports_np);
+		return ret;
+	}
 
 	for_each_available_child_of_node_scoped(ports_np, port_np) {
 		if (!ppe_port_has_netdev(ppe_dev, port_np, &port_id))

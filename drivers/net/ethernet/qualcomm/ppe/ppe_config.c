@@ -11,6 +11,9 @@
 #include <linux/bitmap.h>
 #include <linux/bits.h>
 #include <linux/device.h>
+#include <linux/etherdevice.h>
+#include <linux/if_vlan.h>
+#include <linux/log2.h>
 #include <linux/regmap.h>
 #include <linux/spinlock.h>
 #include <linux/unaligned.h>
@@ -1059,6 +1062,8 @@ const struct ppe_regs ppe_hppe_regs = {
 	.port_eg_vlan_tbl_addr = PPE_HPPE_PORT_EG_VLAN_TBL_ADDR,
 	.l3_vp_port_tbl_addr = PPE_HPPE_L3_VP_PORT_TBL_ADDR,
 	.l3_vp_port_tbl_words = PPE_HPPE_L3_VP_PORT_TBL_WORDS,
+	.eg_vsi_tag_addr = PPE_HPPE_EG_VSI_TAG_ADDR,
+	.eg_vsi_tag_inc = PPE_HPPE_EG_VSI_TAG_INC,
 	.eg_vsi_counter_tbl_addr = PPE_HPPE_EG_VSI_COUNTER_TBL_ADDR,
 	.port_tx_counter_tbl_addr = PPE_HPPE_PORT_TX_COUNTER_TBL_ADDR,
 	.vport_tx_counter_tbl_addr = PPE_HPPE_VPORT_TX_COUNTER_TBL_ADDR,
@@ -1073,6 +1078,8 @@ const struct ppe_regs ppe_appe_regs = {
 	.port_eg_vlan_tbl_addr = PPE_APPE_PORT_EG_VLAN_TBL_ADDR,
 	.l3_vp_port_tbl_addr = PPE_APPE_L3_VP_PORT_TBL_ADDR,
 	.l3_vp_port_tbl_words = PPE_APPE_L3_VP_PORT_TBL_WORDS,
+	.eg_vsi_tag_addr = PPE_APPE_EG_VSI_TAG_ADDR,
+	.eg_vsi_tag_inc = PPE_APPE_EG_VSI_TAG_INC,
 	.eg_vsi_counter_tbl_addr = PPE_APPE_EG_VSI_COUNTER_TBL_ADDR,
 	.port_tx_counter_tbl_addr = PPE_APPE_PORT_TX_COUNTER_TBL_ADDR,
 	.vport_tx_counter_tbl_addr = PPE_APPE_VPORT_TX_COUNTER_TBL_ADDR,
@@ -3031,4 +3038,184 @@ int ppe_port_mtu_set(struct ppe_device *ppe_dev, int port, u32 frame_size)
 				  FIELD_PREP(PPE_MC_MTU_CTRL_TBL_MTU, frame_size) |
 				  FIELD_PREP(PPE_MC_MTU_CTRL_TBL_MTU_CMD,
 					     PPE_ACTION_DROP));
+}
+
+/**
+ * ppe_l2_egress_init - Enable the egress L2 editing.
+ * @ppe_dev: PPE device.
+ * @user_ports: Bitmap of the ports that keep the tags of their frames as
+ *	they are. The other ports do not touch the tags.
+ *
+ * Without this the egress L2 editing is off and the tag mode of each VSI has
+ * its reset value.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_l2_egress_init(struct ppe_device *ppe_dev, u32 user_ports)
+{
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
+	unsigned int i;
+	int ret;
+
+	for (i = 0; i < ppe_dev->num_ports; i++) {
+		u32 mode = user_ports & BIT(i) ? PPE_EG_UNMODIFIED :
+						 PPE_EG_UNTOUCHED;
+
+		ret = regmap_update_bits(ppe_dev->regmap,
+					 regs->port_eg_vlan_tbl_addr +
+					 i * PPE_PORT_EG_VLAN_TBL_INC,
+					 PPE_PORT_EG_VLAN_TBL_CTAG_MODE |
+					 PPE_PORT_EG_VLAN_TBL_STAG_MODE,
+					 FIELD_PREP(PPE_PORT_EG_VLAN_TBL_CTAG_MODE, mode) |
+					 FIELD_PREP(PPE_PORT_EG_VLAN_TBL_STAG_MODE, mode));
+		if (ret)
+			return ret;
+	}
+
+	for (i = 0; i < regs->vsi_tbl_entries; i++) {
+		ret = regmap_write(ppe_dev->regmap,
+				   regs->eg_vsi_tag_addr + i * regs->eg_vsi_tag_inc,
+				   PPE_EG_VSI_TAG_UNMODIFIED);
+		if (ret)
+			return ret;
+	}
+
+	return regmap_set_bits(ppe_dev->regmap, regs->eg_bridge_config_addr,
+			       PPE_EG_L2_EDIT_EN);
+}
+
+/**
+ * ppe_port_fabric_setup - Set up a port of the legacy switch fabric.
+ * @ppe_dev: PPE device.
+ * @port: PPE port.
+ * @frame_size: Largest frame that the port accepts and sends.
+ * @port_mask: Ports that the port may forward to.
+ *
+ * The spanning tree state is forwarding, the port learns addresses, and
+ * the port counters are enabled.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_port_fabric_setup(struct ppe_device *ppe_dev, int port, u32 frame_size,
+			  u32 port_mask)
+{
+	u32 val;
+	int ret;
+
+	ret = regmap_write(ppe_dev->regmap,
+			   PPE_CST_STATE_ADDR + port * PPE_CST_STATE_INC,
+			   PPE_STP_FORWARDING);
+	if (ret)
+		return ret;
+
+	ret = ppe_port_mtu_set(ppe_dev, port, frame_size);
+	if (ret)
+		return ret;
+
+	val = PPE_PORT_BRIDGE_NEW_LRN_EN | PPE_PORT_BRIDGE_STA_MOVE_LRN_EN |
+	      FIELD_PREP(PPE_PORT_BRIDGE_CTRL_PORT_ISOL, port_mask);
+	ret = regmap_update_bits(ppe_dev->regmap,
+				 PPE_PORT_BRIDGE_CTRL_ADDR +
+				 port * PPE_PORT_BRIDGE_CTRL_INC,
+				 PPE_PORT_BRIDGE_NEW_LRN_EN |
+				 PPE_PORT_BRIDGE_STA_MOVE_LRN_EN |
+				 PPE_PORT_BRIDGE_CTRL_PORT_ISOL,
+				 val);
+	if (ret)
+		return ret;
+
+	return ppe_counter_enable_set(ppe_dev, port);
+}
+
+/**
+ * ppe_user_port_setup - Give a user port its default VSI.
+ * @ppe_dev: PPE device.
+ * @port: PPE port.
+ * @vsi: Default VSI of the port.
+ *
+ * The L2 VP port table entry of a user port must have the port itself as its
+ * destination. With the CPU as the destination, the frames that the CPU
+ * sends to the port would go back to the CPU.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_user_port_setup(struct ppe_device *ppe_dev, int port, u32 vsi)
+{
+	u32 reg = PPE_L2_VP_PORT_TBL_ADDR + PPE_L2_VP_PORT_TBL_INC * port;
+	u32 port_cfg[4];
+	int ret;
+
+	ret = ppe_port_vsi_set(ppe_dev, port, vsi);
+	if (ret)
+		return ret;
+
+	ret = regmap_bulk_read(ppe_dev->regmap, reg, port_cfg,
+			       ARRAY_SIZE(port_cfg));
+	if (ret)
+		return ret;
+
+	PPE_L2_PORT_SET_INVALID_VSI_FWD_EN(port_cfg, false);
+	PPE_L2_PORT_SET_DST_INFO(port_cfg, port);
+
+	return regmap_bulk_write(ppe_dev->regmap, reg, port_cfg,
+				 ARRAY_SIZE(port_cfg));
+}
+
+/**
+ * ppe_direct_fabric_init - Set up the legacy switch fabric for direct ports.
+ * @ppe_dev: PPE device.
+ * @user_ports: Bit for each port that has a netdev.
+ *
+ * Each user port has a VSI of its own, whose members are the port and the
+ * CPU port, so that the frames of a port are only forwarded to the CPU. The
+ * default VSI 0 belongs to the CPU port and has every user port as a member.
+ * Address learning is left off.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_direct_fabric_init(struct ppe_device *ppe_dev, u32 user_ports)
+{
+	u32 frame_size = ETH_HLEN + ETH_DATA_LEN + 2 * VLAN_HLEN;
+	u32 port_mask = BIT(ppe_dev->num_ports) - 1;
+	u32 cpu = BIT(PPE_CPU_PORT);
+	unsigned long ports = user_ports;
+	int port, vsi, ret;
+
+	ret = regmap_write(ppe_dev->regmap, PPE_FDB_OP_ADDR, 0);
+	if (ret)
+		return ret;
+
+	for (port = 0; port < ppe_dev->num_ports; port++) {
+		ret = ppe_port_fabric_setup(ppe_dev, port, frame_size, port_mask);
+		if (ret)
+			return ret;
+	}
+
+	/* The CPU port keeps the default VSI, which is the one that the frames
+	 * it sends are looked up in. Every user port must be a member.
+	 */
+	ppe_vsi_reserve(ppe_dev, 0);
+	ret = ppe_vsi_set(ppe_dev, 0, user_ports | cpu, cpu, cpu, cpu);
+	if (ret)
+		return ret;
+
+	for_each_set_bit(port, &ports, ppe_dev->num_ports) {
+		vsi = ppe_vsi_alloc(ppe_dev);
+		if (vsi < 0)
+			return vsi;
+
+		ret = ppe_vsi_set(ppe_dev, vsi, BIT(port) | cpu, cpu, cpu, cpu);
+		if (ret)
+			return ret;
+
+		ret = ppe_user_port_setup(ppe_dev, port, vsi);
+		if (ret)
+			return ret;
+	}
+
+	ret = ppe_fdb_flush(ppe_dev);
+	if (ret)
+		return ret;
+
+	return ppe_l2_egress_init(ppe_dev, user_ports);
 }

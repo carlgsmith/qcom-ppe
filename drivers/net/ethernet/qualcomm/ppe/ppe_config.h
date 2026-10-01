@@ -333,6 +333,11 @@ int ppe_ring_queue_map_set(struct ppe_device *ppe_dev,
 
 int ppe_port_txmac_set(struct ppe_device *ppe_dev, int port, bool enable);
 int ppe_port_mtu_set(struct ppe_device *ppe_dev, int port, u32 frame_size);
+int ppe_l2_egress_init(struct ppe_device *ppe_dev, u32 user_ports);
+int ppe_port_fabric_setup(struct ppe_device *ppe_dev, int port, u32 frame_size,
+			  u32 port_mask);
+int ppe_user_port_setup(struct ppe_device *ppe_dev, int port, u32 vsi);
+int ppe_direct_fabric_init(struct ppe_device *ppe_dev, u32 user_ports);
 int ppe_vsi_alloc(struct ppe_device *ppe_dev);
 void ppe_vsi_free(struct ppe_device *ppe_dev, u32 vsi);
 void ppe_vsi_reserve(struct ppe_device *ppe_dev, u32 vsi);
