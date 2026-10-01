@@ -10,6 +10,7 @@
 #include <linux/interconnect.h>
 
 #include "edma.h"
+#include "ppe_mac.h"
 
 struct device;
 struct regmap;
@@ -26,6 +27,7 @@ struct edma;
  * @icc_data: Interconnect path descriptions.
  * @num_icc_paths: Number of interconnect paths.
  * @config: BM, QM and scheduler tables, owned by ppe_config.c.
+ * @mac: Data of the port MACs, NULL if the SoC has no port MACs.
  * @edma_gen: EDMA generation, EDMA_NONE if the SoC has no EDMA support.
  * @edma_tag_mode: Frame format on the EDMA conduit.
  * @edma_data: Data of the SoC for the EDMA implementation.
@@ -37,6 +39,7 @@ struct ppe_of_data {
 	const struct icc_bulk_data *icc_data;
 	unsigned int num_icc_paths;
 	const struct ppe_config_data *config;
+	const struct ppe_mac_data *mac;
 	enum edma_gen edma_gen;
 	enum edma_tag_mode edma_tag_mode;
 	const void *edma_data;
@@ -50,6 +53,7 @@ struct ppe_of_data {
  * @edma: EDMA instance, NULL if the SoC has no EDMA support.
  * @clk_rate: PPE clock rate.
  * @num_ports: Number of PPE ports.
+ * @macs: MAC of each port, NULL for a port without a MAC.
  * @debugfs_root: Debugfs root entry.
  * @num_icc_paths: Number of interconnect paths.
  * @icc_paths: Interconnect path array.
@@ -65,6 +69,7 @@ struct ppe_device {
 	struct edma *edma;
 	unsigned long clk_rate;
 	unsigned int num_ports;
+	struct ppe_mac *macs[PPE_MAC_MAX_PORTS];
 	struct dentry *debugfs_root;
 	unsigned int num_icc_paths;
 	struct icc_bulk_data icc_paths[] __counted_by(num_icc_paths);

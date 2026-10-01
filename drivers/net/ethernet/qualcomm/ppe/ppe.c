@@ -17,6 +17,7 @@
 #include "ppe.h"
 #include "ppe_config.h"
 #include "ppe_debugfs.h"
+#include "ppe_mac.h"
 
 #define PPE_PORT_MAX		8
 #define PPE_CLK_RATE		353000000
@@ -108,6 +109,18 @@ static const struct regmap_config regmap_config_ipq9574 = {
 	.max_register = 0xbef800,
 };
 
+static const struct ppe_mac_data ppe_ipq9574_mac_data = {
+	.xgmac_addr = 0x500000,
+	.xgmac_stride = 0x4000,
+	.xgmac_first_port = 1,
+	.xgmac_ports = GENMASK(6, 1),
+	.mux = PPE_MAC_MUX_IPQ9574,
+	.reset_delay_ms = 10,
+	.xgmac_init = true,
+	.mib = true,
+	.bm_flow_control = true,
+};
+
 static const struct ppe_of_data ppe_ipq9574_data = {
 	.clk_rate = PPE_CLK_RATE,
 	.num_ports = PPE_PORT_MAX,
@@ -115,6 +128,7 @@ static const struct ppe_of_data ppe_ipq9574_data = {
 	.icc_data = ipq9574_ppe_icc_data,
 	.num_icc_paths = ARRAY_SIZE(ipq9574_ppe_icc_data),
 	.config = &ppe_ipq9574_config,
+	.mac = &ppe_ipq9574_mac_data,
 	.edma_gen = EDMA_V2,
 	.edma_tag_mode = EDMA_TAG_NONE,
 	.edma_data = &edmav2_ipq9574_data,
@@ -234,6 +248,12 @@ static int qcom_ppe_probe(struct platform_device *pdev)
 	ret = ppe_hw_config(ppe_dev);
 	if (ret)
 		return dev_err_probe(dev, ret, "PPE HW config failed\n");
+
+	if (data->mac) {
+		ret = ppe_mac_init(ppe_dev);
+		if (ret)
+			return dev_err_probe(dev, ret, "PPE MAC init failed\n");
+	}
 
 	if (data->edma_gen != EDMA_NONE && ppe_has_child(dev, "ethernet-dma")) {
 		struct edma_config edma_cfg = {

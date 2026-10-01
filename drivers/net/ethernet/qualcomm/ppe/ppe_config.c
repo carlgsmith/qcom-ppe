@@ -2219,3 +2219,22 @@ int ppe_hw_config(struct ppe_device *ppe_dev)
 
 	return ppe_bridge_init(ppe_dev);
 }
+
+/**
+ * ppe_port_txmac_set - Let the fabric feed the MAC of a port or stop it.
+ * @ppe_dev: PPE device.
+ * @port: PPE port.
+ * @enable: Feed the MAC when true.
+ *
+ * The gate is closed before a MAC is stopped, and opened after it started.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ppe_port_txmac_set(struct ppe_device *ppe_dev, int port, bool enable)
+{
+	return regmap_update_bits(ppe_dev->regmap,
+				  PPE_PORT_BRIDGE_CTRL_ADDR +
+				  port * PPE_PORT_BRIDGE_CTRL_INC,
+				  PPE_PORT_BRIDGE_TXMAC_EN,
+				  enable ? PPE_PORT_BRIDGE_TXMAC_EN : 0);
+}

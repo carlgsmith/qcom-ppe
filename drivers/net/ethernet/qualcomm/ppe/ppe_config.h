@@ -321,4 +321,6 @@ int ppe_rss_hash_config_set(struct ppe_device *ppe_dev, int mode,
 int ppe_ring_queue_map_set(struct ppe_device *ppe_dev,
 			   int ring_id,
 			   const u32 *queue_map);
+
+int ppe_port_txmac_set(struct ppe_device *ppe_dev, int port, bool enable);
 #endif
