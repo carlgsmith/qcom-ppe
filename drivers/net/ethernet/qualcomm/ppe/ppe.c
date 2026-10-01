@@ -25,6 +25,8 @@
 #define PPE_CLK_RATE		353000000
 
 /* The IPQ5424 has three physical ports and the port of the EDMA. */
+#define IPQ5332_PPE_PORT_MAX	3
+#define IPQ5332_PPE_CLK_RATE	200000000
 #define IPQ5424_PPE_PORT_MAX	4
 #define IPQ5424_PPE_CLK_RATE	375000000
 
@@ -134,6 +136,36 @@ static const struct regmap_config regmap_config_ipq5424 = {
 	.max_register = 0xbef800,
 };
 
+/* The IPQ5332 has two Ethernet ports, and the register space of the GMACs and
+ * XGMACs after the second is not there.
+ */
+static const struct regmap_range ipq5332_ppe_reserved_ranges[] = {
+	regmap_reg_range(0x1400, 0x15ff),	/* GMAC2 */
+	regmap_reg_range(0x1600, 0x17ff),	/* GMAC3 */
+	regmap_reg_range(0x1800, 0x19ff),	/* GMAC4 */
+	regmap_reg_range(0x1a00, 0x1bff),	/* GMAC5 */
+	regmap_reg_range(0x508000, 0x50bfff),	/* XGMAC2 */
+	regmap_reg_range(0x50c000, 0x50ffff),	/* XGMAC3 */
+	regmap_reg_range(0x510000, 0x513fff),	/* XGMAC4 */
+	regmap_reg_range(0x514000, 0x517fff),	/* XGMAC5 */
+};
+
+static const struct regmap_access_table ipq5332_ppe_reg_table = {
+	.yes_ranges = ppe_readable_ranges,
+	.n_yes_ranges = ARRAY_SIZE(ppe_readable_ranges),
+	.no_ranges = ipq5332_ppe_reserved_ranges,
+	.n_no_ranges = ARRAY_SIZE(ipq5332_ppe_reserved_ranges),
+};
+
+static const struct regmap_config regmap_config_ipq5332 = {
+	.reg_bits = 32,
+	.reg_stride = 4,
+	.val_bits = 32,
+	.rd_table = &ipq5332_ppe_reg_table,
+	.wr_table = &ipq5332_ppe_reg_table,
+	.max_register = 0xbef800,
+};
+
 /* The interconnect paths of the IPQ5424. */
 static const struct icc_bulk_data ipq5424_ppe_icc_data[] = {
 	{
@@ -226,6 +258,35 @@ static const struct ppe_of_data ppe_ipq5424_data = {
 	.edma_gen = EDMA_V2,
 	.edma_tag_mode = EDMA_TAG_NONE,
 	.edma_data = &edmav2_ipq5424_data,
+};
+
+static const struct ppe_mac_data ppe_ipq5332_mac_data = {
+	.xgmac_addr = 0x500000,
+	.xgmac_stride = 0x4000,
+	.xgmac_first_port = 1,
+	.xgmac_ports = GENMASK(2, 1),
+	.mux = PPE_MAC_MUX_IPQ9574,
+	.reset_delay_ms = 10,
+	.xgmac_init = true,
+	.mib = true,
+	.bm_flow_control = true,
+};
+
+/* The IPQ5332 has the five interconnect paths of the IPQ5424. */
+static const struct ppe_of_data ppe_ipq5332_data = {
+	.type = PPE_MPPE,
+	.caps = PPE_CAP_SERVCODE | PPE_CAP_PORT_RX_CNT,
+	.regs = &ppe_appe_regs,
+	.clk_rate = IPQ5332_PPE_CLK_RATE,
+	.num_ports = IPQ5332_PPE_PORT_MAX,
+	.regmap_config = &regmap_config_ipq5332,
+	.icc_data = ipq5424_ppe_icc_data,
+	.num_icc_paths = ARRAY_SIZE(ipq5424_ppe_icc_data),
+	.config = &ppe_ipq5332_config,
+	.mac = &ppe_ipq5332_mac_data,
+	.edma_gen = EDMA_V2,
+	.edma_tag_mode = EDMA_TAG_NONE,
+	.edma_data = &edmav2_ipq5332_data,
 };
 
 /* IPQ6018 has no interconnects. Its ports 0 to 5 are the CPU port and five
@@ -559,6 +620,7 @@ static void qcom_ppe_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id qcom_ppe_of_match[] = {
+	{ .compatible = "qcom,ipq5332-ppe", .data = &ppe_ipq5332_data },
 	{ .compatible = "qcom,ipq5424-ppe", .data = &ppe_ipq5424_data },
 	{ .compatible = "qcom,ipq9574-ppe", .data = &ppe_ipq9574_data },
 	{ .compatible = "qcom,ipq6018-ppe", .data = &ppe_ipq6018_data },

@@ -110,6 +110,48 @@ const struct edmav2_hw_info edmav2_ipq5424_data = {
 	.rxfill_size_in_buffer1_reg = true,
 };
 
+/* Rx Fill ring info for IPQ5332. */
+static const struct edmav2_ring_info ipq5332_rxfill_ring_info = {
+	.max_rings = 8,
+	.ring_start = 4,
+	.num_rings = 4,
+};
+
+/* Rx ring info for IPQ5332. */
+static const struct edmav2_ring_info ipq5332_rx_ring_info = {
+	.max_rings = 16,
+	.ring_start = 12,
+	.num_rings = 4,
+};
+
+/* Tx ring info for IPQ5332. */
+static const struct edmav2_ring_info ipq5332_tx_ring_info = {
+	.max_rings = 24,
+	.ring_start = 4,
+	.num_rings = 12,
+};
+
+/* Tx complete ring info for IPQ5332. */
+static const struct edmav2_ring_info ipq5332_txcmpl_ring_info = {
+	.max_rings = 24,
+	.ring_start = 4,
+	.num_rings = 12,
+};
+
+/* HW info for IPQ5332. */
+const struct edmav2_hw_info edmav2_ipq5332_data = {
+	.rxfill = &ipq5332_rxfill_ring_info,
+	.rx = &ipq5332_rx_ring_info,
+	.tx = &ipq5332_tx_ring_info,
+	.txcmpl = &ipq5332_txcmpl_ring_info,
+	.max_ports = 2,
+	.napi_budget_rx = 128,
+	.napi_budget_tx = 256,
+	.tso_max = 32,
+	.idx_mask = 0xffff,
+	.txdesc_fc_grp_id_mask = GENMASK(3, 1),
+};
+
 /**
  * edmav2_configure_ucast_prio_map_tbl - Configure unicast priority map table.
  * @priv: EDMA
