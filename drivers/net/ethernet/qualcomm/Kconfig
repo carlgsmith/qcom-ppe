@@ -75,6 +75,18 @@ config QCOM_PPE
 	  To compile this driver as a module, choose M here. The module
 	  will be called qcom-ppe.
 
+config QCOM_PPE_DSA
+	bool "Qualcomm PPE DSA switch support"
+	depends on QCOM_PPE
+	depends on NET_DSA
+	depends on NET_DSA=y || QCOM_PPE=m
+	depends on PCS_QCA_UNIPHY
+	help
+	  This option lets the Qualcomm PPE register its ports as a DSA
+	  switch, with the CPU port connected to the Ethernet DMA. It is
+	  used on SoCs with a switch behind a single conduit, such as the
+	  IPQ6018.
+
 config QCOM_PPE_DIRECT
 	bool "Qualcomm PPE direct port support"
 	depends on QCOM_PPE

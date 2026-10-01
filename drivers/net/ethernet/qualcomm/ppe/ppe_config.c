@@ -1508,6 +1508,8 @@ const struct ppe_regs ppe_hppe_regs = {
 	.port_tx_counter_tbl_addr = PPE_HPPE_PORT_TX_COUNTER_TBL_ADDR,
 	.vport_tx_counter_tbl_addr = PPE_HPPE_VPORT_TX_COUNTER_TBL_ADDR,
 	.queue_tx_counter_tbl_addr = PPE_HPPE_QUEUE_TX_COUNTER_TBL_ADDR,
+	.app_ctrl_addr = PPE_HPPE_APP_CTRL_ADDR,
+	.rfdb_tbl_addr = PPE_HPPE_RFDB_TBL_ADDR,
 };
 
 const struct ppe_regs ppe_appe_regs = {
@@ -1524,6 +1526,8 @@ const struct ppe_regs ppe_appe_regs = {
 	.port_tx_counter_tbl_addr = PPE_APPE_PORT_TX_COUNTER_TBL_ADDR,
 	.vport_tx_counter_tbl_addr = PPE_APPE_VPORT_TX_COUNTER_TBL_ADDR,
 	.queue_tx_counter_tbl_addr = PPE_APPE_QUEUE_TX_COUNTER_TBL_ADDR,
+	.app_ctrl_addr = PPE_APPE_APP_CTRL_ADDR,
+	.rfdb_tbl_addr = PPE_APPE_RFDB_TBL_ADDR,
 };
 
 /**

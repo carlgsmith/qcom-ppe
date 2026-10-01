@@ -546,6 +546,14 @@
 #define PPE_XGMAC_RXDISCARD_GB_ADDR			0x9AC
 #define PPE_XGMAC_RXDISCARDBYTE_GB_ADDR		0x9B4
 
+/* FDB ageing and learning. The age timer counts in units of 8 seconds. */
+#define PPE_AGE_TIMER_ADDR			0x60034
+#define PPE_AGE_TIMER_MASK			GENMASK(19, 0)
+
+#define PPE_L2_GLOBAL_CONF_ADDR			0x60038
+#define PPE_L2_LRN_EN				BIT(6)
+#define PPE_L2_AGE_EN				BIT(7)
+
 /* Spanning tree state of a port. */
 #define PPE_CST_STATE_ADDR			0x60100
 #define PPE_CST_STATE_INC			4
@@ -557,6 +565,21 @@
 
 /* The ports that a port can forward to. */
 #define PPE_PORT_BRIDGE_CTRL_PORT_ISOL		GENMASK(15, 8)
+
+/* Control packets that go to the CPU. RFDB has the MAC addresses and APP_CTRL
+ * the rules that use them.
+ */
+#define PPE_HPPE_RFDB_TBL_ADDR			0x61000
+#define PPE_APPE_RFDB_TBL_ADDR			0x63000
+#define PPE_RFDB_TBL_INC			8
+
+#define PPE_HPPE_APP_CTRL_ADDR			0x61400
+#define PPE_APPE_APP_CTRL_ADDR			0x63400
+#define PPE_APP_CTRL_PORT_BITMAP_EN		BIT(2)
+#define PPE_APP_CTRL_PORT_BITMAP		GENMASK(10, 3)
+#define PPE_APP_CTRL_STP_BYPASS			BIT(12)
+#define PPE_APP_CTRL_CMD			GENMASK(16, 15)
+#define PPE_APP_CTRL_REDIRECT_CPU		3
 
 /* Egress VLAN tag mode of each VSI, and the tag modes of a port. */
 #define PPE_EG_VSI_TAG_UNMODIFIED		0xaaaa

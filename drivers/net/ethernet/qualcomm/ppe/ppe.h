@@ -19,6 +19,7 @@
 #define PPE_VSI_MAX		64
 
 struct device;
+struct dsa_switch;
 struct regmap;
 struct regmap_config;
 struct dentry;
@@ -58,6 +59,8 @@ enum ppe_type {
  * @port_tx_counter_tbl_addr: Base address of the port TX counter table.
  * @vport_tx_counter_tbl_addr: Base address of the virtual port TX counter table.
  * @queue_tx_counter_tbl_addr: Base address of the queue TX counter table.
+ * @app_ctrl_addr: Base address of the control packet rules.
+ * @rfdb_tbl_addr: Base address of the RFDB table.
  */
 struct ppe_regs {
 	u32 mru_mtu_tbl_addr;
@@ -73,6 +76,8 @@ struct ppe_regs {
 	u32 port_tx_counter_tbl_addr;
 	u32 vport_tx_counter_tbl_addr;
 	u32 queue_tx_counter_tbl_addr;
+	u32 app_ctrl_addr;
+	u32 rfdb_tbl_addr;
 };
 
 extern const struct ppe_regs ppe_hppe_regs;
@@ -118,6 +123,7 @@ struct ppe_of_data {
  * @regmap: PPE register map.
  * @data: Per-SoC data.
  * @edma: EDMA instance, NULL if the SoC has no EDMA support.
+ * @ds: DSA switch, NULL if the PPE is not a DSA switch.
  * @clk_rate: PPE clock rate.
  * @num_ports: Number of PPE ports.
  * @port_netdev: Netdev of each port of the direct port model.
@@ -141,6 +147,7 @@ struct ppe_device {
 	struct edma *edma;
 	unsigned long clk_rate;
 	unsigned int num_ports;
+	struct dsa_switch *ds;
 	struct net_device *port_netdev[PPE_MAC_MAX_PORTS];
 	DECLARE_BITMAP(vsi_bitmap, PPE_VSI_MAX);
 	struct ppe_mac *macs[PPE_MAC_MAX_PORTS];
