@@ -13,11 +13,13 @@
 
 #include <linux/bitfield.h>
 #include <linux/delay.h>
+#include <linux/ethtool.h>
 #include <linux/etherdevice.h>
 #include <linux/if_bridge.h>
 #include <linux/if_vlan.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
+#include <linux/of_net.h>
 #include <linux/phylink.h>
 #include <linux/regmap.h>
 #include <net/dsa.h>
@@ -40,6 +42,14 @@ struct ppe_dsa_bridge_vsi {
 	int refcount;
 };
 
+/**
+ * struct ppe_dsa_conduit - Private data of the conduit netdev.
+ * @edma: EDMA that moves the frames of the conduit.
+ */
+struct ppe_dsa_conduit {
+	struct edma *edma;
+};
+
 struct ppe_dsa_priv {
 	struct dsa_switch ds;
 	struct ppe_device *ppe_dev;
@@ -50,6 +60,7 @@ struct ppe_dsa_priv {
 	u32 port_vsi[PPE_DSA_MAX_PORTS];
 	struct net_device *port_br_dev[PPE_DSA_MAX_PORTS];
 	struct ppe_dsa_bridge_vsi bridges[PPE_DSA_MAX_BRIDGES];
+	struct net_device *conduit;
 };
 
 static struct ppe_dsa_priv *ds_to_priv(struct dsa_switch *ds)
@@ -688,6 +699,284 @@ static void ppe_dsa_ctrlpkt_init(struct ppe_dsa_priv *priv)
 		     FIELD_PREP(PPE_APP_CTRL_CMD, PPE_APP_CTRL_REDIRECT_CPU));
 }
 
+static int ppe_dsa_conduit_get_sset_count(struct net_device *netdev, int sset)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+	unsigned int count;
+
+	if (sset != ETH_SS_STATS)
+		return -EOPNOTSUPP;
+
+	edma_stats_layout(conduit->edma, &count);
+
+	return count;
+}
+
+static void ppe_dsa_conduit_get_strings(struct net_device *netdev, u32 sset,
+					u8 *data)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+	const struct edma_stat_desc *descs;
+	unsigned int count, i;
+
+	if (sset != ETH_SS_STATS)
+		return;
+
+	descs = edma_stats_layout(conduit->edma, &count);
+	for (i = 0; i < count; i++)
+		ethtool_puts(&data, descs[i].name);
+}
+
+static void ppe_dsa_conduit_get_stats(struct net_device *netdev,
+				      struct ethtool_stats *stats, u64 *data)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+
+	edma_stats_read(conduit->edma, data);
+}
+
+static void ppe_dsa_conduit_get_drvinfo(struct net_device *netdev,
+					struct ethtool_drvinfo *info)
+{
+	strscpy(info->driver, "qcom-ppe", sizeof(info->driver));
+	strscpy(info->bus_info, dev_name(netdev->dev.parent),
+		sizeof(info->bus_info));
+}
+
+static void ppe_dsa_conduit_get_ringparam(struct net_device *netdev,
+					  struct ethtool_ringparam *ring,
+					  struct kernel_ethtool_ringparam *kernel_ring,
+					  struct netlink_ext_ack *extack)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+
+	edma_ringparam_get(conduit->edma, ring);
+}
+
+static int ppe_dsa_conduit_get_regs_len(struct net_device *netdev)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+	int len = edma_regs_len(conduit->edma);
+
+	return len < 0 ? 0 : len;
+}
+
+static void ppe_dsa_conduit_get_regs(struct net_device *netdev,
+				     struct ethtool_regs *regs, void *p)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+
+	regs->version = 1;
+	edma_regs_dump(conduit->edma, p);
+}
+
+static const struct ethtool_ops ppe_dsa_conduit_ethtool_ops = {
+	.get_sset_count	= ppe_dsa_conduit_get_sset_count,
+	.get_strings	= ppe_dsa_conduit_get_strings,
+	.get_ethtool_stats = ppe_dsa_conduit_get_stats,
+	.get_drvinfo	= ppe_dsa_conduit_get_drvinfo,
+	.get_link	= ethtool_op_get_link,
+	.get_ringparam	= ppe_dsa_conduit_get_ringparam,
+	.get_regs_len	= ppe_dsa_conduit_get_regs_len,
+	.get_regs	= ppe_dsa_conduit_get_regs,
+};
+
+static int ppe_dsa_conduit_open(struct net_device *netdev)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+	int ret;
+
+	ret = edma_open(conduit->edma);
+	if (ret)
+		return ret;
+
+	netif_tx_start_all_queues(netdev);
+
+	return 0;
+}
+
+static int ppe_dsa_conduit_stop(struct net_device *netdev)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+
+	netif_tx_disable(netdev);
+	edma_close(conduit->edma);
+
+	return 0;
+}
+
+static netdev_tx_t ppe_dsa_conduit_xmit(struct sk_buff *skb,
+					struct net_device *netdev)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+
+	/* The DSA tag holds the destination port. */
+	return edma_xmit(conduit->edma, skb, 0, skb_get_queue_mapping(skb));
+}
+
+/* The core that transmits picks the queue. The EDMA gives each queue to the
+ * core that has the same number.
+ */
+static u16 ppe_dsa_conduit_select_queue(struct net_device *netdev,
+					struct sk_buff *skb,
+					struct net_device *sb_dev)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+
+	return smp_processor_id() % conduit->edma->caps.tx_queues;
+}
+
+static int ppe_dsa_conduit_change_mtu(struct net_device *netdev, int new_mtu)
+{
+	struct ppe_dsa_conduit *conduit = netdev_priv(netdev);
+	bool running = netif_running(netdev);
+	int ret;
+
+	if (running) {
+		/* The poll wakes a stopped queue when it completes a frame.
+		 * The queues are stopped again after the poll is stopped, so
+		 * that no wake-up reaches the rings while they are rebuilt.
+		 */
+		netif_tx_disable(netdev);
+		edma_pause(conduit->edma);
+		netif_tx_disable(netdev);
+	}
+
+	ret = edma_set_max_frame(conduit->edma,
+				 new_mtu + ETH_HLEN + 2 * VLAN_HLEN);
+	if (!ret)
+		WRITE_ONCE(netdev->mtu, new_mtu);
+
+	if (running) {
+		edma_resume(conduit->edma);
+		netif_tx_start_all_queues(netdev);
+	}
+
+	return ret;
+}
+
+static const struct net_device_ops ppe_dsa_conduit_netdev_ops = {
+	.ndo_open		= ppe_dsa_conduit_open,
+	.ndo_stop		= ppe_dsa_conduit_stop,
+	.ndo_start_xmit		= ppe_dsa_conduit_xmit,
+	.ndo_select_queue	= ppe_dsa_conduit_select_queue,
+	.ndo_change_mtu		= ppe_dsa_conduit_change_mtu,
+	.ndo_set_mac_address	= eth_mac_addr,
+	.ndo_validate_addr	= eth_validate_addr,
+	.ndo_get_stats64	= dev_get_tstats64,
+};
+
+/* The conduit has no address of its own in the devicetree. The user ports
+ * inherit the address of the conduit, so it takes the first address that a
+ * port has.
+ */
+static int ppe_dsa_conduit_mac_get(struct ppe_device *ppe_dev,
+				   struct net_device *netdev)
+{
+	struct device_node *ports_np;
+	int ret = -ENODEV;
+
+	ports_np = of_get_child_by_name(ppe_dev->dev->of_node, "ethernet-ports");
+	if (!ports_np)
+		return ret;
+
+	for_each_available_child_of_node_scoped(ports_np, port_np) {
+		ret = of_get_ethdev_address(port_np, netdev);
+		if (!ret || ret == -EPROBE_DEFER)
+			break;
+	}
+
+	of_node_put(ports_np);
+
+	return ret;
+}
+
+/* The conduit is found by the "ethernet" property of the CPU port, which
+ * refers to the ethernet-dma node. The name comes from the label of the CPU
+ * port.
+ */
+static int ppe_dsa_conduit_create(struct ppe_dsa_priv *priv)
+{
+	struct ppe_device *ppe_dev = priv->ppe_dev;
+	struct edma *edma = ppe_dev->edma;
+	const struct edma_caps *caps = edma_caps_get(edma);
+	struct ppe_dsa_conduit *conduit;
+	struct net_device *netdev;
+	struct device_node *ports_np;
+	const char *label;
+	int ret;
+
+	netdev = alloc_etherdev_mqs(sizeof(*conduit), caps->tx_queues,
+				    caps->rx_queues);
+	if (!netdev)
+		return -ENOMEM;
+
+	conduit = netdev_priv(netdev);
+	conduit->edma = edma;
+
+	SET_NETDEV_DEV(netdev, ppe_dev->dev);
+	netdev->dev.of_node = edma->np;
+	netdev->netdev_ops = &ppe_dsa_conduit_netdev_ops;
+	netdev->ethtool_ops = &ppe_dsa_conduit_ethtool_ops;
+	netdev->hw_features = caps->features;
+	netdev->features = NETIF_F_GRO | caps->features;
+	/* A user port takes its features from the vlan_features of the
+	 * conduit.
+	 */
+	netdev->vlan_features = caps->features;
+	netdev->pcpu_stat_type = NETDEV_PCPU_STAT_TSTATS;
+	netdev->watchdog_timeo = 5 * HZ;
+	netdev->max_mtu = caps->max_mtu;
+	netdev->needed_headroom = caps->needed_headroom;
+
+	ports_np = of_get_child_by_name(ppe_dev->dev->of_node, "ethernet-ports");
+	for_each_available_child_of_node_scoped(ports_np, port_np) {
+		u32 reg;
+
+		if (of_property_read_u32(port_np, "reg", &reg) ||
+		    reg != PPE_DSA_CPU_PORT)
+			continue;
+
+		if (!of_property_read_string(port_np, "label", &label))
+			strscpy(netdev->name, label, IFNAMSIZ);
+		break;
+	}
+	of_node_put(ports_np);
+
+	ret = ppe_dsa_conduit_mac_get(ppe_dev, netdev);
+	if (ret == -EPROBE_DEFER)
+		goto err_free;
+	if (ret)
+		eth_hw_addr_random(netdev);
+
+	ret = edma_register_netdev(edma, PPE_DSA_CPU_PORT, netdev);
+	if (ret)
+		goto err_free;
+
+	ret = register_netdev(netdev);
+	if (ret)
+		goto err_unregister;
+
+	priv->conduit = netdev;
+
+	return 0;
+
+err_unregister:
+	edma_unregister_netdev(edma, PPE_DSA_CPU_PORT);
+err_free:
+	free_netdev(netdev);
+
+	return ret;
+}
+
+static void ppe_dsa_conduit_destroy(struct ppe_dsa_priv *priv)
+{
+	unregister_netdev(priv->conduit);
+	edma_unregister_netdev(priv->ppe_dev->edma, PPE_DSA_CPU_PORT);
+	free_netdev(priv->conduit);
+	priv->conduit = NULL;
+}
+
 /**
  * ppe_dsa_switch_init - Register the PPE as a DSA switch.
  * @ppe_dev: PPE device.
@@ -703,6 +992,9 @@ int ppe_dsa_switch_init(struct ppe_device *ppe_dev)
 	struct ppe_dsa_priv *priv;
 	struct dsa_switch *ds;
 	int ret;
+
+	if (!ppe_dev->edma)
+		return -EOPNOTSUPP;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -722,9 +1014,15 @@ int ppe_dsa_switch_init(struct ppe_device *ppe_dev)
 	ppe_mac_lpbk_init(ppe_dev);
 	ppe_dsa_ctrlpkt_init(priv);
 
-	ret = dsa_register_switch(ds);
+	ret = ppe_dsa_conduit_create(priv);
 	if (ret)
 		return ret;
+
+	ret = dsa_register_switch(ds);
+	if (ret) {
+		ppe_dsa_conduit_destroy(priv);
+		return ret;
+	}
 
 	ppe_dev->ds = ds;
 
@@ -733,9 +1031,14 @@ int ppe_dsa_switch_init(struct ppe_device *ppe_dev)
 
 void ppe_dsa_switch_deinit(struct ppe_device *ppe_dev)
 {
+	struct ppe_dsa_priv *priv;
+
 	if (!ppe_dev->ds)
 		return;
 
+	priv = ds_to_priv(ppe_dev->ds);
+
 	dsa_unregister_switch(ppe_dev->ds);
+	ppe_dsa_conduit_destroy(priv);
 	ppe_dev->ds = NULL;
 }

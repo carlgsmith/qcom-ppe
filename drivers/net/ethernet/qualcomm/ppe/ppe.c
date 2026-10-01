@@ -17,6 +17,7 @@
 #include "ppe.h"
 #include "ppe_config.h"
 #include "ppe_debugfs.h"
+#include "ppe_dsa.h"
 #include "ppe_mac.h"
 #include "ppe_port.h"
 
@@ -438,12 +439,14 @@ static bool ppe_has_child(struct device *dev, const char *name)
 	return np;
 }
 
-/* How the ports reach the network stack. Ports that are available are
+/* How the ports reach the network stack. A port that names its conduit with
+ * an "ethernet" property makes the PPE a DSA switch. Ports without it are
  * netdevs, and without any port node the PPE only forwards in hardware.
  */
 enum ppe_port_model {
 	PPE_PORT_MODEL_NONE,
 	PPE_PORT_MODEL_DIRECT,
+	PPE_PORT_MODEL_DSA,
 };
 
 static enum ppe_port_model ppe_port_model_get(struct device *dev)
@@ -455,8 +458,14 @@ static enum ppe_port_model ppe_port_model_get(struct device *dev)
 	if (!ports_np)
 		return model;
 
-	for_each_available_child_of_node_scoped(ports_np, port_np)
+	for_each_available_child_of_node_scoped(ports_np, port_np) {
+		if (of_property_present(port_np, "ethernet")) {
+			model = PPE_PORT_MODEL_DSA;
+			break;
+		}
+
 		model = PPE_PORT_MODEL_DIRECT;
+	}
 
 	of_node_put(ports_np);
 
@@ -513,20 +522,21 @@ static int qcom_ppe_probe(struct platform_device *pdev)
 	if (data->edma_gen != EDMA_NONE && ppe_has_child(dev, "ethernet-dma")) {
 		enum ppe_port_model model = ppe_port_model_get(dev);
 		struct edma_config edma_cfg = {
-			.tag_mode = EDMA_TAG_NONE,
+			.tag_mode = model == PPE_PORT_MODEL_DSA ?
+				    data->edma_tag_mode : EDMA_TAG_NONE,
 		};
 
 		ret = edma_init(ppe_dev, &edma_cfg, &ppe_dev->edma);
 		if (ret)
 			return dev_err_probe(dev, ret, "EDMA init failed\n");
 
-		if (model == PPE_PORT_MODEL_DIRECT) {
+		if (model == PPE_PORT_MODEL_DSA)
+			ret = ppe_dsa_switch_init(ppe_dev);
+		else if (model == PPE_PORT_MODEL_DIRECT)
 			ret = ppe_port_init(ppe_dev);
-			if (ret) {
-				edma_fini(ppe_dev->edma);
-				return dev_err_probe(dev, ret,
-						     "port model init failed\n");
-			}
+		if (ret) {
+			edma_fini(ppe_dev->edma);
+			return dev_err_probe(dev, ret, "port model init failed\n");
 		}
 	}
 
@@ -542,6 +552,7 @@ static void qcom_ppe_remove(struct platform_device *pdev)
 
 	ppe_dev = platform_get_drvdata(pdev);
 	ppe_debugfs_teardown(ppe_dev);
+	ppe_dsa_switch_deinit(ppe_dev);
 	ppe_port_deinit(ppe_dev);
 	if (ppe_dev->edma)
 		edma_fini(ppe_dev->edma);
