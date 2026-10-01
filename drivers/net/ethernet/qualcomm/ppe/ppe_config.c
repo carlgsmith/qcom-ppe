@@ -1049,6 +1049,30 @@ static const struct ppe_port_schedule_resource ipq9574_ppe_scheduler_res[] = {
 	},
 };
 
+const struct ppe_regs ppe_hppe_regs = {
+	.mru_mtu_tbl_addr = PPE_HPPE_MRU_MTU_CTRL_TBL_ADDR,
+	.vsi_tbl_addr = PPE_HPPE_VSI_TBL_ADDR,
+	.vsi_tbl_entries = PPE_HPPE_VSI_TBL_ENTRIES,
+	.eg_bridge_config_addr = PPE_HPPE_EG_BRIDGE_CONFIG_ADDR,
+	.port_eg_vlan_tbl_addr = PPE_HPPE_PORT_EG_VLAN_TBL_ADDR,
+	.eg_vsi_counter_tbl_addr = PPE_HPPE_EG_VSI_COUNTER_TBL_ADDR,
+	.port_tx_counter_tbl_addr = PPE_HPPE_PORT_TX_COUNTER_TBL_ADDR,
+	.vport_tx_counter_tbl_addr = PPE_HPPE_VPORT_TX_COUNTER_TBL_ADDR,
+	.queue_tx_counter_tbl_addr = PPE_HPPE_QUEUE_TX_COUNTER_TBL_ADDR,
+};
+
+const struct ppe_regs ppe_appe_regs = {
+	.mru_mtu_tbl_addr = PPE_APPE_MRU_MTU_CTRL_TBL_ADDR,
+	.vsi_tbl_addr = PPE_APPE_VSI_TBL_ADDR,
+	.vsi_tbl_entries = PPE_APPE_VSI_TBL_ENTRIES,
+	.eg_bridge_config_addr = PPE_APPE_EG_BRIDGE_CONFIG_ADDR,
+	.port_eg_vlan_tbl_addr = PPE_APPE_PORT_EG_VLAN_TBL_ADDR,
+	.eg_vsi_counter_tbl_addr = PPE_APPE_EG_VSI_COUNTER_TBL_ADDR,
+	.port_tx_counter_tbl_addr = PPE_APPE_PORT_TX_COUNTER_TBL_ADDR,
+	.vport_tx_counter_tbl_addr = PPE_APPE_VPORT_TX_COUNTER_TBL_ADDR,
+	.queue_tx_counter_tbl_addr = PPE_APPE_QUEUE_TX_COUNTER_TBL_ADDR,
+};
+
 /**
  * struct ppe_config_data - PPE BM, QM and scheduler configuration of a SoC.
  * @bm_group_buffers: Buffers assigned to BM group 0.
@@ -1064,6 +1088,7 @@ static const struct ppe_port_schedule_resource ipq9574_ppe_scheduler_res[] = {
  * @sch_port_cfg: Scheduler configuration per port.
  * @sch_port_cfg_num: Number of entries in @sch_port_cfg.
  * @sch_res: Scheduler resources indexed by PPE port.
+ * @mru_mtu_tbl_inc: Distance between the entries of the table.
  */
 struct ppe_config_data {
 	int bm_group_buffers;
@@ -1079,6 +1104,7 @@ struct ppe_config_data {
 	const struct ppe_scheduler_port_config *sch_port_cfg;
 	unsigned int sch_port_cfg_num;
 	const struct ppe_port_schedule_resource *sch_res;
+	u32 mru_mtu_tbl_inc;
 };
 
 const struct ppe_config_data ppe_ipq9574_config = {
@@ -1108,6 +1134,7 @@ const struct ppe_config_data ppe_ipq9574_config = {
 	.sch_port_cfg = ipq9574_ppe_port_sch_config,
 	.sch_port_cfg_num = ARRAY_SIZE(ipq9574_ppe_port_sch_config),
 	.sch_res = ipq9574_ppe_scheduler_res,
+	.mru_mtu_tbl_inc = PPE_MRU_MTU_CTRL_TBL_INC,
 };
 
 /* The IPQ5424 has the same buffers as the IPQ9574, and the queue management
@@ -1128,6 +1155,7 @@ const struct ppe_config_data ppe_ipq5424_config = {
 	.sch_port_cfg = ipq9574_ppe_port_sch_config,
 	.sch_port_cfg_num = ARRAY_SIZE(ipq9574_ppe_port_sch_config),
 	.sch_res = ipq9574_ppe_scheduler_res,
+	.mru_mtu_tbl_inc = PPE_MRU_MTU_CTRL_TBL_INC,
 };
 
 /* Set the PPE queue level scheduler configuration. */
@@ -1570,7 +1598,7 @@ int ppe_sc_config_set(struct ppe_device *ppe_dev, int sc, struct ppe_sc_cfg cfg)
 			  test_bit(PPE_SC_BYPASS_COUNTER_RX, cfg.bitmaps.counter));
 	val |= FIELD_PREP(PPE_IN_L2_SERVICE_TBL_TX_CNT_EN,
 			  test_bit(PPE_SC_BYPASS_COUNTER_TX, cfg.bitmaps.counter));
-	reg = PPE_IN_L2_SERVICE_TBL_ADDR + PPE_IN_L2_SERVICE_TBL_INC * sc;
+	reg = PPE_APPE_IN_L2_SERVICE_TBL_ADDR + PPE_IN_L2_SERVICE_TBL_INC * sc;
 
 	ret = regmap_write(ppe_dev->regmap, reg, val);
 	if (ret)
@@ -1587,7 +1615,7 @@ int ppe_sc_config_set(struct ppe_device *ppe_dev, int sc, struct ppe_sc_cfg cfg)
 	if (ret)
 		return ret;
 
-	reg = PPE_EG_SERVICE_TBL_ADDR + PPE_EG_SERVICE_TBL_INC * sc;
+	reg = PPE_APPE_EG_SERVICE_TBL_ADDR + PPE_APPE_EG_SERVICE_TBL_INC * sc;
 	ret = regmap_bulk_read(ppe_dev->regmap, reg,
 			       servcode_val, ARRAY_SIZE(servcode_val));
 	if (ret)
@@ -1613,6 +1641,18 @@ int ppe_sc_config_set(struct ppe_device *ppe_dev, int sc, struct ppe_sc_cfg cfg)
 }
 
 /**
+ * ppe_vsi_tbl_entries - Get the number of entries in the VSI table.
+ * @ppe_dev: PPE device.
+ *
+ * Return: Number of entries. The tables that have one entry for each VSI
+ * have the same number of entries.
+ */
+unsigned int ppe_vsi_tbl_entries(struct ppe_device *ppe_dev)
+{
+	return ppe_regs(ppe_dev)->vsi_tbl_entries;
+}
+
+/**
  * ppe_counter_enable_set - Set PPE port counter enabled
  * @ppe_dev: PPE device
  * @port: PPE port ID
@@ -1624,10 +1664,12 @@ int ppe_sc_config_set(struct ppe_device *ppe_dev, int sc, struct ppe_sc_cfg cfg)
  */
 int ppe_counter_enable_set(struct ppe_device *ppe_dev, int port)
 {
+	const struct ppe_config_data *cfg = ppe_dev->data->config;
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
 	u32 reg, mru_mtu_val[3];
 	int ret;
 
-	reg = PPE_MRU_MTU_CTRL_TBL_ADDR + PPE_MRU_MTU_CTRL_TBL_INC * port;
+	reg = regs->mru_mtu_tbl_addr + cfg->mru_mtu_tbl_inc * port;
 	ret = regmap_bulk_read(ppe_dev->regmap, reg,
 			       mru_mtu_val, ARRAY_SIZE(mru_mtu_val));
 	if (ret)
@@ -1645,7 +1687,7 @@ int ppe_counter_enable_set(struct ppe_device *ppe_dev, int port)
 	if (ret)
 		return ret;
 
-	reg = PPE_PORT_EG_VLAN_TBL_ADDR + PPE_PORT_EG_VLAN_TBL_INC * port;
+	reg = regs->port_eg_vlan_tbl_addr + PPE_PORT_EG_VLAN_TBL_INC * port;
 
 	return regmap_set_bits(ppe_dev->regmap, reg, PPE_PORT_EG_VLAN_TBL_TX_COUNTING_EN);
 }
@@ -1908,6 +1950,7 @@ bm_config_fail:
 static int ppe_config_qm(struct ppe_device *ppe_dev)
 {
 	const struct ppe_config_data *cfg = ppe_dev->data->config;
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
 	const struct ppe_qm_queue_config *queue_cfg;
 	int ret, i, queue_id, queue_cfg_count;
 	u32 reg, multicast_queue_cfg[5];
@@ -2010,7 +2053,7 @@ static int ppe_config_qm(struct ppe_device *ppe_dev)
 	}
 
 	/* Enable queue counter for all PPE hardware queues. */
-	ret = regmap_set_bits(ppe_dev->regmap, PPE_EG_BRIDGE_CONFIG_ADDR,
+	ret = regmap_set_bits(ppe_dev->regmap, regs->eg_bridge_config_addr,
 			      PPE_EG_BRIDGE_CONFIG_QUEUE_CNT_EN);
 	if (ret)
 		goto qm_config_fail;
@@ -2248,6 +2291,8 @@ static int ppe_servcode_init(struct ppe_device *ppe_dev)
 /* Initialize PPE port configurations. */
 static int ppe_port_config_init(struct ppe_device *ppe_dev)
 {
+	const struct ppe_config_data *cfg = ppe_dev->data->config;
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
 	u32 reg, val, mru_mtu_val[3];
 	int i, ret;
 
@@ -2258,7 +2303,7 @@ static int ppe_port_config_init(struct ppe_device *ppe_dev)
 		if (ret)
 			return ret;
 
-		reg = PPE_MRU_MTU_CTRL_TBL_ADDR + PPE_MRU_MTU_CTRL_TBL_INC * i;
+		reg = regs->mru_mtu_tbl_addr + cfg->mru_mtu_tbl_inc * i;
 		ret = regmap_bulk_read(ppe_dev->regmap, reg,
 				       mru_mtu_val, ARRAY_SIZE(mru_mtu_val));
 		if (ret)
@@ -2363,6 +2408,7 @@ static int ppe_queues_to_ring_init(struct ppe_device *ppe_dev)
  */
 static int ppe_bridge_init(struct ppe_device *ppe_dev)
 {
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
 	u32 reg, mask, port_cfg[4], vsi_cfg[2];
 	int ret, i;
 
@@ -2402,13 +2448,13 @@ static int ppe_bridge_init(struct ppe_device *ppe_dev)
 			return ret;
 	}
 
-	for (i = 0; i < PPE_VSI_TBL_ENTRIES; i++) {
+	for (i = 0; i < regs->vsi_tbl_entries; i++) {
 		/* Set the VSI forward membership to include only CPU port0.
 		 * FDB learning and forwarding take place only after switchdev
 		 * is supported later to create the VSI and join the physical
 		 * ports to the VSI port member.
 		 */
-		reg = PPE_VSI_TBL_ADDR + PPE_VSI_TBL_INC * i;
+		reg = regs->vsi_tbl_addr + PPE_VSI_TBL_INC * i;
 		ret = regmap_bulk_read(ppe_dev->regmap, reg,
 				       vsi_cfg, ARRAY_SIZE(vsi_cfg));
 		if (ret)
@@ -2505,7 +2551,9 @@ int ppe_port_txmac_set(struct ppe_device *ppe_dev, int port, bool enable)
  */
 int ppe_port_mtu_set(struct ppe_device *ppe_dev, int port, u32 frame_size)
 {
-	u32 reg = PPE_MRU_MTU_CTRL_TBL_ADDR + port * PPE_MRU_MTU_CTRL_TBL_INC;
+	const struct ppe_config_data *cfg = ppe_dev->data->config;
+	const struct ppe_regs *regs = ppe_regs(ppe_dev);
+	u32 reg = regs->mru_mtu_tbl_addr + port * cfg->mru_mtu_tbl_inc;
 	u32 val[2];
 	int ret;
 

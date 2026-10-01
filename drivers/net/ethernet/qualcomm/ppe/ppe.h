@@ -20,7 +20,54 @@ struct ppe_config_data;
 struct edma;
 
 /**
+ * enum ppe_type - Type of the PPE.
+ * @PPE_HPPE: The base type.
+ * @PPE_CPPE: Has the register map of the HPPE.
+ * @PPE_APPE: Has a different register map and more features than the HPPE.
+ * @PPE_MPPE: Has the register map of the APPE.
+ */
+enum ppe_type {
+	PPE_HPPE,
+	PPE_CPPE,
+	PPE_APPE,
+	PPE_MPPE,
+};
+
+/* Features that depend on the type of the PPE. */
+#define PPE_CAP_PORT_RX_CNT	BIT(1)	/* Per-port RX counter tables. */
+
+/**
+ * struct ppe_regs - Register map of a PPE type.
+ * @mru_mtu_tbl_addr: Base address of the per-port MRU and MTU table.
+ * @vsi_tbl_addr: Base address of the VSI table.
+ * @vsi_tbl_entries: Number of entries in the VSI tables.
+ * @eg_bridge_config_addr: Address of the egress bridge configuration.
+ * @port_eg_vlan_tbl_addr: Base address of the per-port egress VLAN table.
+ * @eg_vsi_counter_tbl_addr: Base address of the egress VSI counter table.
+ * @port_tx_counter_tbl_addr: Base address of the port TX counter table.
+ * @vport_tx_counter_tbl_addr: Base address of the virtual port TX counter table.
+ * @queue_tx_counter_tbl_addr: Base address of the queue TX counter table.
+ */
+struct ppe_regs {
+	u32 mru_mtu_tbl_addr;
+	u32 vsi_tbl_addr;
+	unsigned int vsi_tbl_entries;
+	u32 eg_bridge_config_addr;
+	u32 port_eg_vlan_tbl_addr;
+	u32 eg_vsi_counter_tbl_addr;
+	u32 port_tx_counter_tbl_addr;
+	u32 vport_tx_counter_tbl_addr;
+	u32 queue_tx_counter_tbl_addr;
+};
+
+extern const struct ppe_regs ppe_hppe_regs;
+extern const struct ppe_regs ppe_appe_regs;
+
+/**
  * struct ppe_of_data - Per-SoC PPE data, selected by the compatible string.
+ * @type: Type of the PPE.
+ * @caps: Features of the PPE type, PPE_CAP_*.
+ * @regs: Register map of the PPE type.
  * @clk_rate: PPE clock rate.
  * @num_ports: Number of PPE ports.
  * @regmap_config: Register map configuration.
@@ -33,6 +80,9 @@ struct edma;
  * @edma_data: Data of the SoC for the EDMA implementation.
  */
 struct ppe_of_data {
+	enum ppe_type type;
+	u32 caps;
+	const struct ppe_regs *regs;
 	unsigned long clk_rate;
 	unsigned int num_ports;
 	const struct regmap_config *regmap_config;
@@ -76,4 +126,14 @@ struct ppe_device {
 	unsigned int num_icc_paths;
 	struct icc_bulk_data icc_paths[] __counted_by(num_icc_paths);
 };
+
+static inline const struct ppe_regs *ppe_regs(const struct ppe_device *ppe_dev)
+{
+	return ppe_dev->data->regs;
+}
+
+static inline bool ppe_has_cap(const struct ppe_device *ppe_dev, u32 cap)
+{
+	return ppe_dev->data->caps & cap;
+}
 #endif

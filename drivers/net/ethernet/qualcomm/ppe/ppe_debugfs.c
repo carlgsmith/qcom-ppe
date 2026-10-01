@@ -388,7 +388,7 @@ static int ppe_l2_counter_get(struct ppe_device *ppe_dev,
 	int ret, i, tag = 0;
 
 	seq_printf(seq, "%-24s", "L2 RX/RX_DROP:");
-	for (i = 0; i < PPE_PRE_L2_CNT_TBL_ENTRIES; i++) {
+	for (i = 0; i < ppe_vsi_tbl_entries(ppe_dev); i++) {
 		reg = PPE_PRE_L2_CNT_TBL_ADDR + PPE_PRE_L2_CNT_TBL_INC * i;
 		ret = ppe_pkt_cnt_get(ppe_dev, reg, PPE_PKT_CNT_SIZE_5WORD,
 				      &pkt_cnt, &drop_cnt);
@@ -419,7 +419,7 @@ static int ppe_vlan_rx_counter_get(struct ppe_device *ppe_dev,
 	int ret, i, tag = 0;
 
 	seq_printf(seq, "%-24s", "VLAN RX:");
-	for (i = 0; i < PPE_VLAN_CNT_TBL_ENTRIES; i++) {
+	for (i = 0; i < ppe_vsi_tbl_entries(ppe_dev); i++) {
 		reg = PPE_VLAN_CNT_TBL_ADDR + PPE_VLAN_CNT_TBL_INC * i;
 
 		ret = ppe_pkt_cnt_get(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD,
@@ -489,8 +489,8 @@ static int ppe_vlan_tx_counter_get(struct ppe_device *ppe_dev,
 	int ret, i, tag = 0;
 
 	seq_printf(seq, "%-24s", "VLAN TX:");
-	for (i = 0; i < PPE_EG_VSI_COUNTER_TBL_ENTRIES; i++) {
-		reg = PPE_EG_VSI_COUNTER_TBL_ADDR + PPE_EG_VSI_COUNTER_TBL_INC * i;
+	for (i = 0; i < ppe_vsi_tbl_entries(ppe_dev); i++) {
+		reg = ppe_regs(ppe_dev)->eg_vsi_counter_tbl_addr + PPE_EG_VSI_COUNTER_TBL_INC * i;
 
 		ret = ppe_pkt_cnt_get(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD,
 				      &pkt_cnt, NULL);
@@ -522,7 +522,8 @@ static int ppe_port_tx_counter_get(struct ppe_device *ppe_dev,
 	seq_printf(seq, "%-24s", "VPORT TX/TX_DROP:");
 	tag = 0;
 	for (i = 0; i < PPE_VPORT_TX_COUNTER_TBL_ENTRIES; i++) {
-		reg = PPE_VPORT_TX_COUNTER_TBL_ADDR + PPE_VPORT_TX_COUNTER_TBL_INC * i;
+		reg = ppe_regs(ppe_dev)->vport_tx_counter_tbl_addr +
+		      PPE_VPORT_TX_COUNTER_TBL_INC * i;
 		ret = ppe_pkt_cnt_get(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD,
 				      &pkt_cnt, NULL);
 		if (ret) {
@@ -552,7 +553,7 @@ static int ppe_port_tx_counter_get(struct ppe_device *ppe_dev,
 	seq_printf(seq, "%-24s", "PORT TX/TX_DROP:");
 	tag = 0;
 	for (i = 0; i < PPE_PORT_TX_COUNTER_TBL_ENTRIES; i++) {
-		reg = PPE_PORT_TX_COUNTER_TBL_ADDR + PPE_PORT_TX_COUNTER_TBL_INC * i;
+		reg = ppe_regs(ppe_dev)->port_tx_counter_tbl_addr + PPE_PORT_TX_COUNTER_TBL_INC * i;
 		ret = ppe_pkt_cnt_get(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD,
 				      &pkt_cnt, NULL);
 		if (ret) {
@@ -591,7 +592,8 @@ static int ppe_queue_counter_get(struct ppe_device *ppe_dev,
 
 	seq_printf(seq, "%-24s", "QUEUE TX/PEND/DROP:");
 	for (i = 0; i < PPE_QUEUE_TX_COUNTER_TBL_ENTRIES; i++) {
-		reg = PPE_QUEUE_TX_COUNTER_TBL_ADDR + PPE_QUEUE_TX_COUNTER_TBL_INC * i;
+		reg = ppe_regs(ppe_dev)->queue_tx_counter_tbl_addr +
+		      PPE_QUEUE_TX_COUNTER_TBL_INC * i;
 		ret = ppe_pkt_cnt_get(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD,
 				      &pkt_cnt, NULL);
 		if (ret) {
@@ -757,14 +759,14 @@ static ssize_t ppe_packet_counter_write(struct file *file,
 
 		break;
 	case PPE_CNT_VLAN_RX:
-		for (i = 0; i < PPE_VLAN_CNT_TBL_ENTRIES; i++) {
+		for (i = 0; i < ppe_vsi_tbl_entries(ppe_dev); i++) {
 			reg = PPE_VLAN_CNT_TBL_ADDR + PPE_VLAN_CNT_TBL_INC * i;
 			ppe_tbl_pkt_cnt_clear(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD);
 		}
 
 		break;
 	case PPE_CNT_L2_FWD:
-		for (i = 0; i < PPE_PRE_L2_CNT_TBL_ENTRIES; i++) {
+		for (i = 0; i < ppe_vsi_tbl_entries(ppe_dev); i++) {
 			reg = PPE_PRE_L2_CNT_TBL_ADDR + PPE_PRE_L2_CNT_TBL_INC * i;
 			ppe_tbl_pkt_cnt_clear(ppe_dev, reg, PPE_PKT_CNT_SIZE_5WORD);
 		}
@@ -778,8 +780,9 @@ static ssize_t ppe_packet_counter_write(struct file *file,
 
 		break;
 	case PPE_CNT_VLAN_TX:
-		for (i = 0; i < PPE_EG_VSI_COUNTER_TBL_ENTRIES; i++) {
-			reg = PPE_EG_VSI_COUNTER_TBL_ADDR + PPE_EG_VSI_COUNTER_TBL_INC * i;
+		for (i = 0; i < ppe_vsi_tbl_entries(ppe_dev); i++) {
+			reg = ppe_regs(ppe_dev)->eg_vsi_counter_tbl_addr +
+			      PPE_EG_VSI_COUNTER_TBL_INC * i;
 			ppe_tbl_pkt_cnt_clear(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD);
 		}
 
@@ -789,12 +792,14 @@ static ssize_t ppe_packet_counter_write(struct file *file,
 			reg = PPE_PORT_TX_DROP_CNT_TBL_ADDR + PPE_PORT_TX_DROP_CNT_TBL_INC * i;
 			ppe_tbl_pkt_cnt_clear(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD);
 
-			reg = PPE_PORT_TX_COUNTER_TBL_ADDR + PPE_PORT_TX_COUNTER_TBL_INC * i;
+			reg = ppe_regs(ppe_dev)->port_tx_counter_tbl_addr +
+			      PPE_PORT_TX_COUNTER_TBL_INC * i;
 			ppe_tbl_pkt_cnt_clear(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD);
 		}
 
 		for (i = 0; i < PPE_VPORT_TX_COUNTER_TBL_ENTRIES; i++) {
-			reg = PPE_VPORT_TX_COUNTER_TBL_ADDR + PPE_VPORT_TX_COUNTER_TBL_INC * i;
+			reg = ppe_regs(ppe_dev)->vport_tx_counter_tbl_addr +
+			      PPE_VPORT_TX_COUNTER_TBL_INC * i;
 			ppe_tbl_pkt_cnt_clear(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD);
 
 			reg = PPE_VPORT_TX_DROP_CNT_TBL_ADDR + PPE_VPORT_TX_DROP_CNT_TBL_INC * i;
@@ -804,7 +809,8 @@ static ssize_t ppe_packet_counter_write(struct file *file,
 		break;
 	case PPE_CNT_QM:
 		for (i = 0; i < PPE_QUEUE_TX_COUNTER_TBL_ENTRIES; i++) {
-			reg = PPE_QUEUE_TX_COUNTER_TBL_ADDR + PPE_QUEUE_TX_COUNTER_TBL_INC * i;
+			reg = ppe_regs(ppe_dev)->queue_tx_counter_tbl_addr +
+			      PPE_QUEUE_TX_COUNTER_TBL_INC * i;
 			ppe_tbl_pkt_cnt_clear(ppe_dev, reg, PPE_PKT_CNT_SIZE_3WORD);
 		}
 
@@ -830,6 +836,10 @@ void ppe_debugfs_setup(struct ppe_device *ppe_dev)
 		entry = devm_kzalloc(ppe_dev->dev, sizeof(*entry), GFP_KERNEL);
 		if (!entry)
 			return;
+
+		if (debugfs_files[i].counter_type == PPE_CNT_PORT_RX &&
+		    !ppe_has_cap(ppe_dev, PPE_CAP_PORT_RX_CNT))
+			continue;
 
 		entry->ppe = ppe_dev;
 		entry->counter_type = debugfs_files[i].counter_type;

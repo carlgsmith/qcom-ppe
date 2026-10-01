@@ -184,6 +184,9 @@ static const struct ppe_mac_data ppe_ipq9574_mac_data = {
 };
 
 static const struct ppe_of_data ppe_ipq9574_data = {
+	.type = PPE_APPE,
+	.caps = PPE_CAP_PORT_RX_CNT,
+	.regs = &ppe_appe_regs,
 	.clk_rate = PPE_CLK_RATE,
 	.num_ports = PPE_PORT_MAX,
 	.regmap_config = &regmap_config_ipq9574,
@@ -209,6 +212,9 @@ static const struct ppe_mac_data ppe_ipq5424_mac_data = {
 };
 
 static const struct ppe_of_data ppe_ipq5424_data = {
+	.type = PPE_APPE,
+	.caps = PPE_CAP_PORT_RX_CNT,
+	.regs = &ppe_appe_regs,
 	.clk_rate = IPQ5424_PPE_CLK_RATE,
 	.num_ports = IPQ5424_PPE_PORT_MAX,
 	.regmap_config = &regmap_config_ipq5424,
